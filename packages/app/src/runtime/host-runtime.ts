@@ -1698,11 +1698,14 @@ export class HostRuntimeStore {
   }
 
   private async initializeSharedHostSettings(): Promise<void> {
-    if (!this.sharedSettingsClient || !(await this.sharedSettingsClient.discover())) return;
-    this.setSharedHostSettingsState("disconnected");
+    if (!this.sharedSettingsClient) return;
     try {
       this.sharedSettingsToken = await this.storage.getItem(SHARED_SETTINGS_TOKEN_KEY);
-      await this.refreshSharedHostSettings();
+      if (this.sharedSettingsToken) {
+        await this.refreshSharedHostSettings();
+      } else if (await this.sharedSettingsClient.discover()) {
+        this.setSharedHostSettingsState("disconnected");
+      }
     } catch (error) {
       this.setSharedHostSettingsState(
         "error",

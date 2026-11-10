@@ -2024,7 +2024,19 @@ describe("HostRuntimeStore", () => {
       () => reopened.getSharedHostSettingsState().status === "connected",
     );
     expect(reopened.getHosts()[0]!.label).toBe("服务端更新");
-    for (const store of [first, second, reopened]) store.syncHosts([]);
+    fail = true;
+    const offline = createAppearanceStore(secondStorage, {
+      ...client,
+      discover: async () => false,
+    });
+    await offline.boot();
+    await onceHostListMatches(
+      offline,
+      () => offline.getSharedHostSettingsState().status === "error",
+    );
+    await expect(offline.renameHost("srv_shared", "local-only")).rejects.toThrow("offline");
+    expect(offline.getHosts()[0]!.label).toBe("服务端更新");
+    for (const store of [first, second, reopened, offline]) store.syncHosts([]);
   });
 
   it("records a chosen host color and writes it through to storage", async () => {
