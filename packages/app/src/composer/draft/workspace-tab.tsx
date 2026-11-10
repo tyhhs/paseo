@@ -1,4 +1,3 @@
-import { digestStringAsync, CryptoDigestAlgorithm } from "expo-crypto";
 import { useWorkspaceLayoutStore, collectAllTabs } from "@/stores/workspace-layout-store";
 import { activeConversation } from "@/stores/conversation-layout";
 import { useCallback, useEffect, useMemo, useRef } from "react";
@@ -34,6 +33,7 @@ import {
   shouldAllowEmptyDraftText,
   validateDraftSubmission,
   canAutoCreateTeamDraft,
+  buildDraftIdempotencyKey,
 } from "@/composer/draft/workspace-tab-core";
 import type { AgentCapabilityFlags } from "@getpaseo/protocol/agent-types";
 import type { AgentSnapshotPayload } from "@getpaseo/protocol/messages";
@@ -197,12 +197,7 @@ async function submitDraftCreateRequest(input: {
     ...(imagesData && imagesData.length > 0 ? { images: imagesData } : {}),
     ...(attachmentsArray && attachmentsArray.length > 0 ? { attachments: attachmentsArray } : {}),
   };
-  const fingerprint = JSON.stringify(options, (_key, value: unknown) =>
-    value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
-      : value,
-  );
-  const idempotencyKey = `${input.draftId}:${await digestStringAsync(CryptoDigestAlgorithm.SHA256, fingerprint)}`;
+  const idempotencyKey = buildDraftIdempotencyKey(input.draftId, options);
   const keyedOptions = { ...options, idempotencyKey };
   const creation = useWorkspaceDraftSubmissionStore.getState().creationByDraftId[input.draftId];
   const result = creation

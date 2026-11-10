@@ -441,9 +441,11 @@ describe("sidebar workspace render isolation", () => {
 });
 
 describe("host-created sidebar conversations", () => {
-  it("shows the agent title for its owning workspace and updates it after rename", async () => {
+  it.each([false, true])("deduplicates draft conversion (scoped=%s)", async (scoped) => {
     const { useSidebarConversations } = await import("./sidebar/sidebar-conversation-list");
     const { normalizeAgentSnapshot } = await import("@/utils/agent-snapshots");
+    const { useWorkspaceLayoutStore } = await import("@/stores/workspace-layout-store");
+    const initialLayout = useWorkspaceLayoutStore.getState();
     const serverId = "devbox-regression";
     const store = useSessionStore.getState();
     store.initializeSession(serverId, null as unknown as DaemonClient);
@@ -459,7 +461,9 @@ describe("host-created sidebar conversations", () => {
       return (
         <div>
           {rows.map((row) => (
-            <div key={row.id}>{row.title}</div>
+            <div key={row.id} data-conversation-id={row.id}>
+              {row.title}
+            </div>
           ))}
         </div>
       );
@@ -506,10 +510,40 @@ describe("host-created sidebar conversations", () => {
       );
       expect(container.textContent).toContain("Renamed conversation");
       expect(container.textContent).not.toContain("New remote session");
+      const key = `${serverId}:new-workspace`;
+      const layoutStore = useWorkspaceLayoutStore.getState();
+      let conversationId = "";
+      act(() => {
+        const draft = { kind: "draft" as const, draftId: "sidebar-draft" };
+        const rootTabId = layoutStore.newConversation(
+          key,
+          scoped
+            ? { kind: "scoped", serverId, workspaceId: "new-workspace", target: draft }
+            : draft,
+        );
+        conversationId = useWorkspaceLayoutStore.getState().activeConversationByWorkspace[key]!;
+        const target = { kind: "agent" as const, agentId: agent.id };
+        layoutStore.replaceTab(
+          key,
+          rootTabId,
+          scoped ? { kind: "scoped", serverId, workspaceId: "new-workspace", target } : target,
+        );
+      });
+      expect(container.textContent).toBe("Renamed conversation");
+      expect(
+        Array.from(container.querySelectorAll("[data-conversation-id]")).map((row) =>
+          row.getAttribute("data-conversation-id"),
+        ),
+      ).toEqual([conversationId]);
+      act(() => {
+        layoutStore.newConversation(key);
+      });
+      expect(container.querySelectorAll("[data-conversation-id]")).toHaveLength(2);
     } finally {
       act(() => root.unmount());
       container.remove();
       store.clearSession(serverId);
+      useWorkspaceLayoutStore.setState(initialLayout);
     }
   });
 });

@@ -1500,6 +1500,24 @@ export function createWorkspaceLayoutStore(
           if (!result) return null;
           set((state) => ({
             ...withoutFocusRestoration(state, normalizedWorkspaceKey),
+            ...(currentConversation
+              ? {
+                  conversationsByWorkspace: {
+                    ...state.conversationsByWorkspace,
+                    [normalizedWorkspaceKey]: {
+                      ...state.conversationsByWorkspace[normalizedWorkspaceKey],
+                      [currentConversation.id]: {
+                        ...currentConversation,
+                        layout: result.layout,
+                        rootTabId:
+                          currentConversation.rootTabId === normalizedTabId
+                            ? result.tabId
+                            : currentConversation.rootTabId,
+                      },
+                    },
+                  },
+                }
+              : {}),
             hiddenAgentIdsByWorkspace:
               normalizedTarget.kind !== "agent"
                 ? state.hiddenAgentIdsByWorkspace

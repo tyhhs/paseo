@@ -3,6 +3,17 @@ import type { DesktopDialogBridge, DesktopDialogOpenOptions } from "./host";
 import { pickDirectory } from "./pick-directory";
 
 describe("pickDirectory", () => {
+  it("starts the desktop picker at the configured directory", async () => {
+    let options: DesktopDialogOpenOptions | undefined;
+    const dialog: DesktopDialogBridge = {
+      open: async (input) => {
+        options = input;
+        return null;
+      },
+    };
+    await pickDirectory(dialog, "/home/user/repos");
+    expect(options?.defaultPath).toBe("/home/user/repos");
+  });
   it("opens a single-directory picker and returns the selection", async () => {
     const recordedOptions: DesktopDialogOpenOptions[] = [];
     const dialog: DesktopDialogBridge = {

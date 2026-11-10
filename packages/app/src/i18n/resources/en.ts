@@ -382,6 +382,8 @@ export const en = {
     },
   },
   agentStream: {
+    turnProcess: "Work process",
+    turnProcessDuration: "Worked for {{duration}}",
     empty: "Start chatting with this agent...",
     scrollToBottom: "Scroll to bottom",
     historyLoadFailed: "Couldn't load agent history",
@@ -1491,7 +1493,7 @@ export const en = {
         current: "Follow current chat",
         multiple: "Multiple hosts",
         label: "Host",
-        all: "All hosts",
+        all: "All",
       },
       projectFilter: {
         label: "Project",
@@ -2689,8 +2691,8 @@ export const en = {
       },
       sidebar: {
         header: {
-          title: "Header",
-          description: "Choose which items appear at the top of the sidebar and in what order",
+          title: "Navigation and plugins",
+          description: "Choose the bottom navigation items, top sidebar plugins, and their order",
         },
         footer: {
           title: "Footer",
@@ -2837,6 +2839,12 @@ export const en = {
       },
     },
     host: {
+      browse: {
+        label: "Starting directory",
+        edit: "Browse starting directory",
+        invalidPath: "Enter an absolute directory path",
+        hostUnavailable: "Connect to this host before saving",
+      },
       password: {
         guidance: "Remove this host and add it again with the password this daemon asks for.",
       },

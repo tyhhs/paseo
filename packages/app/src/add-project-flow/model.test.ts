@@ -7,6 +7,8 @@ import {
   moveAddProjectSelection,
   openAddProjectFlow,
   openDirectorySearchPage,
+  openDirectoryBrowsePage,
+  navigateAddProjectDirectory,
   openGithubLocationPage,
   openNewDirectoryNamePage,
   openNewDirectoryParentPage,
@@ -18,6 +20,8 @@ import {
 import {
   addProjectMethodEmptyText,
   buildAddProjectMethods,
+  buildDirectoryBrowserOptions,
+  parentDirectory,
   buildCloneLocationOptions,
   buildManualGithubRepositoryChoices,
 } from "./options";
@@ -118,7 +122,7 @@ describe("Add Project options", () => {
     expect(addProjectMethodEmptyText(outdatedHost)).toBe("Update the host to use Add Project.");
   });
 
-  it("keeps host-upgrade methods discoverable while hiding local-only Browse", () => {
+  it("offers remote folder browsing while retaining host-upgrade methods", () => {
     expect(
       buildAddProjectMethods({
         ...HOST,
@@ -133,6 +137,7 @@ describe("Add Project options", () => {
         label: "Search for directory",
         description: "Find a directory on Local",
       },
+      { id: "browse", label: "Browse", description: "Browse folders on Local" },
       {
         id: "github",
         label: "Clone from GitHub",
@@ -204,5 +209,64 @@ describe("Add Project options", () => {
         disabled: false,
       },
     ]);
+  });
+});
+
+describe("remote directory browsing", () => {
+  it("starts from the selected host's configured directory on every open", () => {
+    const state = openAddProjectFlow({
+      hosts: [{ ...HOST, browseRootDirectory: "/home/user/repos" }],
+    });
+    const browse = openDirectoryBrowsePage(state, HOST.serverId);
+    expect(currentAddProjectPage(browse)).toMatchObject({ directory: "/home/user/repos" });
+    const navigated = navigateAddProjectDirectory(browse, "/home/user/repos/child");
+    expect(
+      currentAddProjectPage(openDirectoryBrowsePage(backAddProjectPage(navigated)!, HOST.serverId)),
+    ).toMatchObject({ directory: "/home/user/repos" });
+    expect(currentAddProjectPage(openDirectoryBrowsePage(state, "other-host"))).toMatchObject({
+      directory: "/",
+    });
+  });
+  it("navigates without selecting a project and clears the previous folder filter", () => {
+    let state = openDirectoryBrowsePage(
+      openAddProjectFlow({ hosts: [HOST] }),
+      HOST.serverId,
+      "/home/user",
+    );
+    state = setAddProjectPageInput(state, "repo");
+    state = setAddProjectActiveIndex(state, 3);
+    state = navigateAddProjectDirectory(state, "/home/user/repos");
+    expect(currentAddProjectPage(state)).toEqual({
+      kind: "directory-browse",
+      hostId: HOST.serverId,
+      directory: "/home/user/repos",
+      query: "",
+      activeIndex: 0,
+      error: null,
+      isSubmitting: false,
+    });
+    expect(currentAddProjectPage(backAddProjectPage(state)!)).toMatchObject({
+      kind: "method",
+      hostId: HOST.serverId,
+    });
+  });
+  it("lists directories only, filters case-insensitively and keeps full paths", () => {
+    const entries = [
+      { name: "Repo-b", kind: "directory" },
+      { name: "other.txt", kind: "file" },
+      { name: "repo-a", kind: "directory" },
+      { name: "other", kind: "directory" },
+    ];
+    expect(buildDirectoryBrowserOptions(entries, "/home/user/", "REPO")).toEqual([
+      { name: "repo-a", path: "/home/user/repo-a" },
+      { name: "Repo-b", path: "/home/user/Repo-b" },
+    ]);
+    expect(buildDirectoryBrowserOptions([], "/", "missing")).toEqual([]);
+  });
+  it("stops at the filesystem root and preserves Windows drive roots", () => {
+    expect(parentDirectory("/")).toBeNull();
+    expect(parentDirectory("/home")).toBe("/");
+    expect(parentDirectory("C:\\work")).toBe("C:\\");
+    expect(parentDirectory("C:\\")).toBeNull();
   });
 });

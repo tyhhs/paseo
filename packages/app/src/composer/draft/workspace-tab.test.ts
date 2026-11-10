@@ -1,10 +1,32 @@
-import { describe, expect, test } from "vitest";
+import { createHash } from "node:crypto";
+import { describe, expect, test, vi } from "vitest";
 
 import {
   canAutoCreateTeamDraft,
+  buildDraftIdempotencyKey,
   shouldAllowEmptyDraftText,
   validateDraftSubmission,
 } from "./workspace-tab-core";
+
+test("draft keys preserve SHA-256 and retry identity without WebCrypto", () => {
+  vi.stubGlobal("crypto", {});
+  try {
+    const options = { text: "你好 👋", config: { provider: "codex", cwd: "/tmp" } };
+    const canonical = '{"config":{"cwd":"/tmp","provider":"codex"},"text":"你好 👋"}';
+    const expected = `draft:${createHash("sha256").update(canonical).digest("hex")}`;
+    expect(buildDraftIdempotencyKey("draft", options)).toBe(expected);
+    expect(
+      buildDraftIdempotencyKey("draft", {
+        config: { cwd: "/tmp", provider: "codex" },
+        text: "你好 👋",
+      }),
+    ).toBe(expected);
+    expect(buildDraftIdempotencyKey("draft", { ...options, text: "changed" })).not.toBe(expected);
+    expect(buildDraftIdempotencyKey("other", options)).not.toBe(expected);
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
 
 const baseComposerState = {
   providerDefinitions: [{ id: "codewhale" }],

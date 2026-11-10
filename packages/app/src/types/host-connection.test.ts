@@ -50,6 +50,28 @@ describe("orderHostsLocalFirst", () => {
 });
 
 describe("normalizeStoredHostProfile", () => {
+  it("restores per-host browse roots and ignores invalid legacy values", () => {
+    const base = {
+      serverId: "srv_browse",
+      connections: [{ type: "directTcp", endpoint: "localhost:6767" }],
+    };
+    expect(normalizeStoredHostProfile(base)?.browseRootDirectory).toBeUndefined();
+    expect(
+      normalizeStoredHostProfile({ ...base, browseRootDirectory: " /home/user/repos " })
+        ?.browseRootDirectory,
+    ).toBe("/home/user/repos");
+    expect(
+      normalizeStoredHostProfile({ ...base, browseRootDirectory: "relative/path" })
+        ?.browseRootDirectory,
+    ).toBeUndefined();
+    expect(
+      normalizeStoredHostProfile({ ...base, browseRootDirectory: "C:\\work" })?.browseRootDirectory,
+    ).toBe("C:\\work");
+    expect(
+      normalizeStoredHostProfile({ ...base, browseRootDirectory: "/bad\u0000path" })
+        ?.browseRootDirectory,
+    ).toBeUndefined();
+  });
   it("loads direct TCP connections stored before TLS and password fields existed", () => {
     const profile = normalizeStoredHostProfile({
       serverId: "srv_old",

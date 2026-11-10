@@ -41,13 +41,13 @@ export function buildAddProjectMethods(host: AddProjectHost): AddProjectMethodOp
     label: "Search for directory",
     description: `Find a directory on ${host.label}`,
   });
-  if (host.canBrowse) {
-    options.push({
-      id: "browse",
-      label: "Browse",
-      description: "Choose or create a directory in Finder",
-    });
-  }
+  options.push({
+    id: "browse",
+    label: "Browse",
+    description: host.canBrowse
+      ? "Choose or create a directory in Finder"
+      : `Browse folders on ${host.label}`,
+  });
   options.push({
     id: "github",
     label: "Clone from GitHub",
@@ -124,7 +124,20 @@ export function parentDirectory(path: string): string | null {
   const index = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
   if (index < 0) return null;
   if (index === 0) return trimmed.slice(0, 1);
+  if (index === 2 && /^[A-Za-z]:[\\/]/.test(trimmed)) return trimmed.slice(0, 3);
   return trimmed.slice(0, index);
+}
+
+export function buildDirectoryBrowserOptions(
+  entries: readonly { name: string; kind: string }[],
+  directory: string,
+  query: string,
+) {
+  const filter = query.trim().toLowerCase();
+  return entries
+    .filter((entry) => entry.kind === "directory" && entry.name.toLowerCase().includes(filter))
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((entry) => ({ name: entry.name, path: joinDirectoryPath(directory, entry.name) }));
 }
 
 export function joinDirectoryPath(parent: string, name: string): string {

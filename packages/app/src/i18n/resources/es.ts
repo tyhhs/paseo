@@ -246,6 +246,8 @@ export const es: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "Proceso de trabajo",
+    turnProcessDuration: "Tiempo empleado: {{duration}}",
     empty: "Comience a chatear con este agente...",
     scrollToBottom: "Desplazarse hacia abajo",
     historyLoadFailed: "No se pudo cargar el historial del agente",
@@ -1246,7 +1248,7 @@ export const es: TranslationResources = {
         current: "Seguir conversación actual",
         multiple: "Varios hosts",
         label: "Host",
-        all: "Todos los hosts",
+        all: "Todos",
       },
       projectFilter: {
         label: "Proyecto",
@@ -2344,9 +2346,9 @@ export const es: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "Encabezado",
+          title: "Navegación y plugins",
           description:
-            "Elige qué elementos aparecen en la parte superior de la barra lateral y en qué orden",
+            "Elige los elementos de navegación inferior, los plugins superiores y su orden",
         },
         footer: {
           title: "Pie",
@@ -2495,6 +2497,12 @@ export const es: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "Directorio inicial",
+        edit: "Directorio inicial de exploración",
+        invalidPath: "Introduce una ruta absoluta de directorio",
+        hostUnavailable: "Conéctate a este host antes de guardar",
+      },
       password: {
         guidance: "Elimina este host y vuelve a añadirlo con la contraseña que pide este daemon.",
       },

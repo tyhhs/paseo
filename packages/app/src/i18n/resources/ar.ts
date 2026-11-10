@@ -240,6 +240,8 @@ export const ar: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "سير العمل",
+    turnProcessDuration: "استغرق {{duration}}",
     empty: "ابدأ الدردشة مع هذا الوكيل...",
     scrollToBottom: "قم بالتمرير إلى الأسفل",
     historyLoadFailed: "تعذر تحميل سجل الوكيل",
@@ -1206,7 +1208,7 @@ export const ar: TranslationResources = {
         current: "اتّباع المحادثة الحالية",
         multiple: "عدة مضيفين",
         label: "المضيف",
-        all: "كل المضيفين",
+        all: "الكل",
       },
       projectFilter: {
         label: "المشروع",
@@ -2288,8 +2290,8 @@ export const ar: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "الرأس",
-          description: "اختر العناصر التي تظهر أعلى الشريط الجانبي وترتيبها",
+          title: "التنقل والإضافات",
+          description: "اختر عناصر التنقل السفلية وإضافات أعلى الشريط الجانبي وترتيبها",
         },
         footer: {
           title: "التذييل",
@@ -2437,6 +2439,12 @@ export const ar: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "مجلد البدء",
+        edit: "مجلد بدء التصفح",
+        invalidPath: "أدخل مسار مجلد مطلقًا",
+        hostUnavailable: "اتصل بهذا المضيف قبل الحفظ",
+      },
       password: {
         guidance: "أزل هذا المضيف ثم أضفه مرة أخرى بكلمة المرور التي يطلبها هذا الخادم.",
       },

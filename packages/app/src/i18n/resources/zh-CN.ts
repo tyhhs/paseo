@@ -374,6 +374,8 @@ export const zhCN: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "工作过程",
+    turnProcessDuration: "用时 {{duration}}",
     empty: "开始和这个 Agent 对话...",
     scrollToBottom: "滚动到底部",
     historyLoadFailed: "无法加载智能体历史记录",
@@ -1452,7 +1454,7 @@ export const zhCN: TranslationResources = {
         current: "跟随当前会话",
         multiple: "多个 host",
         label: "主机",
-        all: "所有主机",
+        all: "全部",
       },
       projectFilter: {
         label: "项目",
@@ -2517,8 +2519,8 @@ export const zhCN: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "顶部",
-          description: "选择侧边栏顶部显示的项目及其顺序",
+          title: "导航与插件",
+          description: "选择底部导航项、侧边栏顶部插件及其顺序",
         },
         footer: {
           title: "底部",
@@ -2663,6 +2665,12 @@ export const zhCN: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "起始目录",
+        edit: "Browse 起始目录",
+        invalidPath: "请输入绝对目录路径",
+        hostUnavailable: "请连接此主机后再保存",
+      },
       password: {
         guidance: "移除此主机，然后使用此守护进程要求的密码重新添加。",
       },

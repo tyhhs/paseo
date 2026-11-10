@@ -64,6 +64,7 @@ export interface HostProfile {
   serverId: string;
   password?: string;
   label: string;
+  browseRootDirectory?: string;
   appearance: HostAppearance;
   lifecycle: HostLifecycle;
   connections: HostConnection[];
@@ -74,6 +75,13 @@ export interface HostProfile {
 
 export function defaultLifecycle(): HostLifecycle {
   return {};
+}
+
+export function normalizeHostBrowseRootDirectory(value: string | undefined): string | undefined {
+  const path = value?.trim();
+  return path && /^(?:\/|[A-Za-z]:[\\/])/.test(path) && !path.includes("\0") && !/[\r\n]/.test(path)
+    ? path
+    : undefined;
 }
 
 export function normalizeHostLabel(value: string | null | undefined, serverId: string): string {
@@ -435,6 +443,7 @@ const StoredHostProfileSchema = z.strictObject({
   serverId: z.string().trim().min(1),
   password: z.string().optional(),
   label: z.string().optional(),
+  browseRootDirectory: z.string().optional(),
   appearance: HostAppearanceSchema.optional(),
   lifecycle: z.strictObject({}).optional(),
   connections: z.array(StoredHostConnectionSchema).min(1),
@@ -535,6 +544,9 @@ export function normalizeStoredHostProfile(entry: unknown): HostProfile | null {
     ...(password ? { password } : {}),
     label,
     appearance: record.appearance ?? defaultHostAppearance(),
+    ...(normalizeHostBrowseRootDirectory(record.browseRootDirectory)
+      ? { browseRootDirectory: normalizeHostBrowseRootDirectory(record.browseRootDirectory) }
+      : {}),
     lifecycle: defaultLifecycle(),
     connections,
     preferredConnectionId,

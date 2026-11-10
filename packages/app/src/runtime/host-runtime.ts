@@ -18,6 +18,7 @@ import {
   StoredHostRegistrySchema,
   type HostConnection,
   type HostProfile,
+  normalizeHostBrowseRootDirectory,
 } from "@/types/host-connection";
 import { defaultHostAppearance, type HostBadgeDisplay, type HostColor } from "@/hosts/appearance";
 import {
@@ -1495,7 +1496,7 @@ export class HostRuntimeStore {
   private hostListVersion = 0;
   private hostRegistryLoaded = false;
   private hosts: HostProfile[] = [];
-  private hostAppearanceMutationTail: Promise<void> = Promise.resolve();
+  private hostPreferencesMutationTail: Promise<void> = Promise.resolve();
   private hostRegistryStatus: HostRegistryStatus = "loading";
   private deps: HostRuntimeControllerDeps;
   private lastConnectionStatusByServer = new Map<string, HostRuntimeConnectionStatus>();
@@ -2105,31 +2106,37 @@ export class HostRuntimeStore {
   }
 
   async setHostColor(serverId: string, color: HostColor): Promise<void> {
-    await this.updateHostAppearance(serverId, (host) => ({
+    await this.updateHostPreferences(serverId, (host) => ({
       ...host,
       appearance: { ...host.appearance, color },
     }));
   }
 
   async setHostBadgeDisplay(serverId: string, badgeDisplay: HostBadgeDisplay): Promise<void> {
-    await this.updateHostAppearance(serverId, (host) => ({
+    await this.updateHostPreferences(serverId, (host) => ({
       ...host,
       appearance: { ...host.appearance, badgeDisplay },
     }));
   }
 
-  private updateHostAppearance(
+  async setHostBrowseRootDirectory(serverId: string, directory: string): Promise<void> {
+    const browseRootDirectory = normalizeHostBrowseRootDirectory(directory);
+    if (!browseRootDirectory) throw new Error("An absolute directory path is required");
+    await this.updateHostPreferences(serverId, (host) => ({ ...host, browseRootDirectory }));
+  }
+
+  private updateHostPreferences(
     serverId: string,
     apply: (host: HostProfile) => HostProfile,
   ): Promise<void> {
-    const update = this.hostAppearanceMutationTail.then(() =>
-      this.applyHostAppearance(serverId, apply),
+    const update = this.hostPreferencesMutationTail.then(() =>
+      this.applyHostPreferences(serverId, apply),
     );
-    this.hostAppearanceMutationTail = update.catch(() => undefined);
+    this.hostPreferencesMutationTail = update.catch(() => undefined);
     return update;
   }
 
-  private async applyHostAppearance(
+  private async applyHostPreferences(
     serverId: string,
     apply: (host: HostProfile) => HostProfile,
   ): Promise<void> {
@@ -2860,6 +2867,7 @@ export interface HostMutations {
   renameHost: (serverId: string, label: string) => Promise<void>;
   setHostColor: (serverId: string, color: HostColor) => Promise<void>;
   setHostBadgeDisplay: (serverId: string, badgeDisplay: HostBadgeDisplay) => Promise<void>;
+  setHostBrowseRootDirectory: (serverId: string, directory: string) => Promise<void>;
   removeHost: (serverId: string) => Promise<void>;
   removeConnection: (serverId: string, connectionId: string) => Promise<void>;
 }
@@ -2876,6 +2884,8 @@ export function useHostMutations(): HostMutations {
       setHostColor: (serverId, color) => store.setHostColor(serverId, color),
       setHostBadgeDisplay: (serverId, badgeDisplay) =>
         store.setHostBadgeDisplay(serverId, badgeDisplay),
+      setHostBrowseRootDirectory: (serverId, directory) =>
+        store.setHostBrowseRootDirectory(serverId, directory),
       removeHost: (serverId) => store.removeHost(serverId),
       removeConnection: (serverId, connectionId) => store.removeConnection(serverId, connectionId),
     }),

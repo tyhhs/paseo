@@ -15,6 +15,7 @@ import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import {
   Pressable,
+  ScrollView,
   StyleSheet as RNStyleSheet,
   Text,
   useWindowDimensions,
@@ -34,7 +35,7 @@ import {
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
 import { SidebarSeparator } from "@/components/sidebar/sidebar-separator";
-import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
+import { SidebarNavRows, SidebarFooterNavigation } from "@/components/sidebar/sidebar-nav-rows";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { DensityIcon } from "@/components/ui/density-icon";
@@ -429,25 +430,34 @@ function SidebarFooter({
   const newAgentKeys = useShortcutKeys("new-agent");
   const settingsKeys = useShortcutKeys("toggle-settings");
 
-  // One line of icons: Add project, Usage, Hosts, then Help and Settings at the end.
+  // Navigation, project and host actions share the fixed footer icon line.
   return (
     <UsageSidebarRoot>
       <View style={styles.footerContainer} testID="sidebar-footer">
         <SidebarFooterRows onBeforeNavigate={onBeforeNavigate} />
         <View style={styles.sidebarFooter} testID="sidebar-footer-bottom-line">
-          <FooterIconButton
-            onPress={handleOpenProject}
-            testID="sidebar-add-project"
-            label={labels.addProject}
-            icon={FolderPlus}
-            shortcutKeys={newAgentKeys}
-          />
-          <SidebarUsageIcon label={labels.usage} />
-          <SidebarHostPicker
-            label={labels.hosts}
-            onAddHost={handleAddHost}
-            onOpenHostSettings={handleOpenHostSettings}
-          />
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.footerPrimary}
+            contentContainerStyle={styles.footerPrimaryContent}
+            testID="sidebar-footer-primary-actions"
+          >
+            <SidebarFooterNavigation onBeforeNavigate={onBeforeNavigate} />
+            <FooterIconButton
+              onPress={handleOpenProject}
+              testID="sidebar-add-project"
+              label={labels.addProject}
+              icon={FolderPlus}
+              shortcutKeys={newAgentKeys}
+            />
+            <SidebarUsageIcon label={labels.usage} />
+            <SidebarHostPicker
+              label={labels.hosts}
+              onAddHost={handleAddHost}
+              onOpenHostSettings={handleOpenHostSettings}
+            />
+          </ScrollView>
           <View style={styles.footerSpacer} />
           <SidebarHelpMenu />
           <FooterIconButton
@@ -561,7 +571,11 @@ function MobileSidebar({
     >
       <View style={styles.sidebarContent} pointerEvents="auto">
         <WindowChromeSafeArea placement="below" />
-        <SidebarNavRows style={styles.sidebarHeaderGroup} onBeforeNavigate={closeSidebar} />
+        <SidebarNavRows
+          pluginsOnly
+          style={styles.sidebarHeaderGroup}
+          onBeforeNavigate={closeSidebar}
+        />
         <WindowChromeSafeArea
           placement="inline"
           pointerEvents="box-none"
@@ -762,7 +776,9 @@ function DesktopSidebar({
           ) : (
             <TitlebarDragRegion />
           )}
-          {!getIsElectronMac() ? <SidebarNavRows style={sidebarHeaderGroupStyle} /> : null}
+          {!getIsElectronMac() ? (
+            <SidebarNavRows pluginsOnly style={sidebarHeaderGroupStyle} />
+          ) : null}
         </View>
 
         {active ? <ActiveSessionSidebar /> : null}
@@ -813,19 +829,21 @@ function DesktopSidebar({
 
 function WorkspacesSectionHeader() {
   return (
-    <SidebarSectionHeader title="Workspaces">
+    <View>
+      <SidebarSectionHeader title="Workspaces">
+        <Tooltip delayDuration={300}>
+          <TooltipTrigger asChild>
+            <View>
+              <SidebarDisplayPreferencesMenu />
+            </View>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" align="center" offset={8}>
+            <IconTooltipContent label="Display preferences" />
+          </TooltipContent>
+        </Tooltip>
+      </SidebarSectionHeader>
       <SidebarHostFilter />
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <View>
-            <SidebarDisplayPreferencesMenu />
-          </View>
-        </TooltipTrigger>
-        <TooltipContent side="bottom" align="center" offset={8}>
-          <IconTooltipContent label="Display preferences" />
-        </TooltipContent>
-      </Tooltip>
-    </SidebarSectionHeader>
+    </View>
   );
 }
 
@@ -861,11 +879,7 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: 0,
   },
   mobileCloseButtonRow: {
-    position: "absolute",
-    top: theme.spacing[3],
-    left: 0,
-    right: 0,
-    zIndex: 2,
+    paddingTop: theme.spacing[1],
     alignItems: "flex-end",
   },
   mobileCloseButton: {
@@ -925,6 +939,8 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
     paddingVertical: theme.spacing[1.5],
   },
+  footerPrimary: { flexGrow: 0, flexShrink: 1, minWidth: 0 },
+  footerPrimaryContent: { flexDirection: "row", alignItems: "center" },
   // Pushes Help and Settings to the end of the icon line.
   footerSpacer: {
     flex: 1,

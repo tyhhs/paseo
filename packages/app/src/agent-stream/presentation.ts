@@ -3,6 +3,7 @@ import type { AssistantMessageItem, StreamItem, UserMessageItem } from "@/types/
 import type { TimelineItemTransform } from "@/plugins/timeline/model";
 import { projectPluginTimelineItems } from "@/plugins/timeline/projection";
 import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
+import { describeToolCall } from "@/tool-calls/detail-level/grouping";
 import {
   prepareToolCallHistory,
   projectToolCallDetailLevel,
@@ -16,6 +17,145 @@ interface PresentationInput {
   transform: TimelineItemTransform | undefined;
   level: ToolCallDetailLevel;
   isTurnActive: boolean;
+  expandedGroupIds?: ReadonlySet<string>;
+}
+
+export interface TurnProcessGroup {
+  id: string;
+  durationMs: number | null;
+  hasError: boolean;
+}
+
+const EMPTY_EXPANDED_GROUPS: ReadonlySet<string> = new Set();
+
+function createTurnProcessProjection() {
+  const hosts = new WeakMap<
+    StreamItem,
+    { first: StreamItem; host: StreamItem; group: TurnProcessGroup }
+  >();
+  let savedTail: StreamItem[] | undefined;
+  let savedExpanded: ReadonlySet<string> | undefined;
+  let pending: StreamItem[] = [];
+  let history: StreamItem[] = [];
+  let historyGroups = new Map<string, TurnProcessGroup>();
+  let historyMessages = new Map<string, string>();
+
+  function appendResponse(
+    items: StreamItem[],
+    output: StreamItem[],
+    groups: Map<string, TurnProcessGroup>,
+    messages: Map<string, string>,
+    expanded: ReadonlySet<string>,
+  ) {
+    const final = items.at(-1);
+    const start = items[0]?.kind === "user_message" ? 1 : 0;
+    const finalId = final?.kind === "assistant_message" ? getStreamItemMessageId(final) : null;
+    let end = finalId === null ? -1 : items.length - 1;
+    while (end > start && items[end - 1]?.kind === "assistant_message") end -= 1;
+    const process = items.slice(start, end);
+    // shortcut: legacy timelines lack message phases; use explicit final-phase metadata when the daemon exposes it.
+    if (
+      end <= start ||
+      process.some((item) => {
+        if (item.kind === "tool_call") {
+          const call = describeToolCall(item);
+          return (
+            call.status === "running" ||
+            call.status === "executing" ||
+            /request_user_input|askuserquestion/i.test(call.name)
+          );
+        }
+        return (
+          item.kind !== "assistant_message" && item.kind !== "thought" && item.kind !== "todo_list"
+        );
+      })
+    ) {
+      output.push(...items);
+      return;
+    }
+    const first = process[0]!;
+    const durationMs =
+      start === 1 ? Math.max(0, final!.timestamp.getTime() - items[0]!.timestamp.getTime()) : null;
+    const hasError = process.some(
+      (item) =>
+        item.kind === "tool_call" &&
+        Boolean(describeToolCall(item).error || describeToolCall(item).status === "failed"),
+    );
+    let cached = hosts.get(final!);
+    if (
+      !cached ||
+      cached.first !== first ||
+      cached.group.durationMs !== durationMs ||
+      cached.group.hasError !== hasError
+    ) {
+      const id = `turn-process:${finalId}`;
+      cached = {
+        first,
+        group: { id, durationMs, hasError },
+        host: {
+          kind: "thought",
+          id,
+          turnId: first.turnId,
+          timelineCursor: first.timelineCursor,
+          text: "",
+          timestamp: first.timestamp,
+          status: "ready",
+        },
+      };
+      hosts.set(final!, cached);
+    }
+    groups.set(cached.group.id, cached.group);
+    for (const item of process) messages.set(getStreamItemMessageId(item), cached.group.id);
+    output.push(...items.slice(0, start), cached.host);
+    if (expanded.has(cached.group.id)) output.push(...process);
+    output.push(...items.slice(end));
+  }
+
+  return (input: {
+    tail: StreamItem[];
+    head: StreamItem[];
+    isTurnActive: boolean;
+    expandedGroupIds?: ReadonlySet<string>;
+  }) => {
+    const expanded = input.expandedGroupIds ?? EMPTY_EXPANDED_GROUPS;
+    if (savedTail !== input.tail || savedExpanded !== expanded) {
+      history = [];
+      pending = [];
+      historyGroups = new Map();
+      historyMessages = new Map();
+      for (const item of input.tail) {
+        if (item.kind === "user_message" && pending.length) {
+          const previousTurnId = pending.at(-1)?.turnId;
+          if (previousTurnId !== undefined && item.turnId === previousTurnId)
+            history.push(...pending);
+          else appendResponse(pending, history, historyGroups, historyMessages, expanded);
+          pending = [];
+        }
+        pending.push(item);
+      }
+      // Cache completed history separately from the growing live response.
+      history = historyGroups.size ? [...history, ...pending] : input.tail;
+      savedTail = input.tail;
+      savedExpanded = expanded;
+    }
+    if (input.isTurnActive)
+      return {
+        tail: history,
+        head: input.head,
+        processGroupsByHostId: historyGroups,
+        processGroupByMessageId: historyMessages,
+      };
+    const groups = new Map(historyGroups);
+    const messages = new Map(historyMessages);
+    const tail = history.slice(0, history.length - pending.length);
+    appendResponse([...pending, ...input.head], tail, groups, messages, expanded);
+    return {
+      tail: groups.size ? tail : input.tail,
+      head: groups.size ? [] : input.head,
+      processGroupsByHostId: groups,
+      processGroupByMessageId: messages,
+    };
+  };
 }
 
 function retainItems(previous: StreamItem[], next: StreamItem[]): StreamItem[] {
@@ -55,6 +195,7 @@ function isReusableBlock(block: AssistantMessageItem, source: AssistantMessageIt
 
 /** Source messages reach plugins before any Markdown splitting or Overview grouping. */
 export function createStreamPresentation() {
+  const projectTurnProcess = createTurnProcessProjection();
   const userMessageCache = new WeakMap<UserMessageItem, UserMessageItem>();
 
   function presentUserMessage(item: UserMessageItem): UserMessageItem {
@@ -180,12 +321,21 @@ export function createStreamPresentation() {
       preparedTail = displayTail;
       preparedLevel = input.level;
     }
-    return projectToolCallDetailLevel({
+    const tools = projectToolCallDetailLevel({
       level: input.level,
       tail: displayTail,
       head,
       preparedHistory,
       isTurnActive: input.isTurnActive,
     });
+    return {
+      ...tools,
+      ...projectTurnProcess({
+        tail: tools.tail,
+        head: tools.head,
+        isTurnActive: input.isTurnActive,
+        expandedGroupIds: input.expandedGroupIds,
+      }),
+    };
   };
 }

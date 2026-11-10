@@ -240,6 +240,8 @@ export const ko: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "작업 과정",
+    turnProcessDuration: "소요 시간 {{duration}}",
     empty: "이 에이전트와 대화를 시작하세요...",
     scrollToBottom: "맨 아래로 스크롤",
     historyLoadFailed: "에이전트 기록을 로드할 수 없습니다.",
@@ -1213,7 +1215,7 @@ export const ko: TranslationResources = {
         current: "현재 대화 따라가기",
         multiple: "여러 호스트",
         label: "호스트",
-        all: "모든 호스트",
+        all: "전체",
       },
       projectFilter: {
         label: "프로젝트",
@@ -2299,8 +2301,8 @@ export const ko: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "헤더",
-          description: "사이드바 상단에 표시할 항목과 순서를 선택하세요",
+          title: "탐색 및 플러그인",
+          description: "하단 탐색 항목과 사이드바 상단 플러그인 및 순서를 선택하세요",
         },
         footer: {
           title: "푸터",
@@ -2447,6 +2449,12 @@ export const ko: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "시작 디렉터리",
+        edit: "탐색 시작 디렉터리",
+        invalidPath: "디렉터리의 절대 경로를 입력하세요",
+        hostUnavailable: "저장하기 전에 이 호스트에 연결하세요",
+      },
       password: {
         guidance: "이 호스트를 제거한 뒤 이 데몬이 요구하는 비밀번호로 다시 추가하세요.",
       },

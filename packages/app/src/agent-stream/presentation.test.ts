@@ -699,3 +699,171 @@ describe("Team message display", () => {
     expect(resolveTeamMessageDisplay(`[Team task ${task.id}]\n自定义的提示词`, [task])).toBeNull();
   });
 });
+
+describe("completed response process", () => {
+  function response(): StreamItem[] {
+    return [
+      { kind: "user_message", id: "prompt", text: "Investigate", timestamp: new Date(0) },
+      {
+        kind: "assistant_message",
+        id: "progress",
+        text: "Checking the source",
+        timestamp: new Date(1000),
+      },
+      { ...toolCall("check", "shell"), timestamp: new Date(2000) },
+      {
+        kind: "assistant_message",
+        id: "result",
+        text: "# Result\n\nThe full final answer.",
+        timestamp: new Date(65000),
+      },
+    ];
+  }
+  const options = { level: "overview" as const, isTurnActive: false, transform: undefined };
+  it("collapses progress and commands, retaining every block of the final answer", () => {
+    const present = createStreamPresentation();
+    const source = response();
+    const collapsed = present({ ...options, tail: source, head: [] });
+    expect(collapsed.tail.filter((i) => i.kind === "assistant_message").map((i) => i.text)).toEqual(
+      ["# Result", "The full final answer."],
+    );
+    const group = [...collapsed.processGroupsByHostId.values()][0]!;
+    expect(group.durationMs).toBe(65000);
+    expect(collapsed.processGroupByMessageId.get("progress")).toBe(group.id);
+    const expanded = present({
+      ...options,
+      tail: source,
+      head: [],
+      expandedGroupIds: new Set([group.id]),
+    });
+    expect(expanded.tail.filter((i) => i.kind === "assistant_message").map((i) => i.text)).toEqual([
+      "Checking the source",
+      "# Result",
+      "The full final answer.",
+    ]);
+    expect(expanded.tail.some((i) => i.kind === "tool_call")).toBe(true);
+    expect(present({ ...options, tail: source, head: [] }).tail.map((i) => i.id)).toEqual(
+      collapsed.tail.map((i) => i.id),
+    );
+    expect(source).toEqual(response());
+  });
+  it("keeps the current turn live and folds it only after completion across tail/head", () => {
+    const present = createStreamPresentation();
+    const items = response();
+    const tail = items.slice(0, -1),
+      head = items.slice(-1);
+    const live = present({ ...options, isTurnActive: true, tail, head });
+    expect(live.processGroupsByHostId.size).toBe(0);
+    expect(
+      live.tail.some((i) => i.kind === "assistant_message" && i.text === "Checking the source"),
+    ).toBe(true);
+    const finished = present({ ...options, tail, head });
+    expect(finished.processGroupsByHostId.size).toBe(1);
+    expect(finished.tail.filter((i) => i.kind === "assistant_message").map((i) => i.text)).toEqual([
+      "# Result",
+      "The full final answer.",
+    ]);
+  });
+  it("does not hide a reply ending in a tool or an error without a final answer", () => {
+    const tail = response().slice(0, -1);
+    const result = createStreamPresentation()({ ...options, tail, head: [] });
+    expect(result.processGroupsByHostId.size).toBe(0);
+    expect(
+      result.tail.some((i) => i.kind === "assistant_message" && i.text === "Checking the source"),
+    ).toBe(true);
+    const error: StreamItem = {
+      kind: "notification",
+      id: "error",
+      sourceType: "error",
+      level: "error",
+      message: "Turn failed",
+      timestamp: new Date(66000),
+    };
+    expect(
+      createStreamPresentation()({ ...options, tail: [...response(), error], head: [] })
+        .processGroupsByHostId.size,
+    ).toBe(0);
+  });
+  it("keeps prior completed replies folded while the next turn streams, with stable history rows", () => {
+    const present = createStreamPresentation();
+    const tail: StreamItem[] = [
+      ...response(),
+      { kind: "user_message", id: "next", text: "Next", timestamp: new Date(70000) },
+    ];
+    const first = present({ ...options, tail, head: [], isTurnActive: true });
+    const next = present({
+      ...options,
+      tail,
+      head: [
+        { kind: "assistant_message", id: "live", text: "Working", timestamp: new Date(71000) },
+      ],
+      isTurnActive: true,
+    });
+    expect(first.processGroupsByHostId.size).toBe(1);
+    expect(next.tail).toBe(first.tail);
+    expect(next.head.map((i) => (i.kind === "assistant_message" ? i.text : ""))).toEqual([
+      "Working",
+    ]);
+  });
+  it.each(["running", "question"])("keeps %s interactions visible", (kind) => {
+    const tail = response();
+    const tool = toolCall(
+      "interactive",
+      kind === "question" ? "request_user_input_async" : "shell",
+    );
+    if (tool.payload.source === "agent" && kind === "running") tool.payload.data.status = "running";
+    tail[2] = tool;
+    expect(
+      createStreamPresentation()({ ...options, tail, head: [] }).processGroupsByHostId.size,
+    ).toBe(0);
+  });
+  it("preserves progress before a steer in the same canonical turn", () => {
+    const tail = response();
+    for (const item of tail) item.turnId = "same-turn";
+    tail.push({
+      kind: "user_message",
+      id: "steer",
+      turnId: "same-turn",
+      text: "Continue",
+      timestamp: new Date(66000),
+    });
+    const result = createStreamPresentation()({ ...options, isTurnActive: true, tail, head: [] });
+    expect(result.processGroupsByHostId.size).toBe(0);
+    expect(
+      result.tail.some(
+        (item) => item.kind === "assistant_message" && item.text === "Checking the source",
+      ),
+    ).toBe(true);
+  });
+  it("does not invent elapsed time for partial history without its prompt", () => {
+    const result = createStreamPresentation()({ ...options, tail: response().slice(1), head: [] });
+    expect([...result.processGroupsByHostId.values()].map((group) => group.durationMs)).toEqual([
+      null,
+    ]);
+  });
+  it("preserves consecutive final message segments without folding any result paragraphs", () => {
+    const tail: StreamItem[] = [
+      ...response(),
+      {
+        kind: "assistant_message",
+        id: "result-continuation",
+        text: "Further result details.",
+        timestamp: new Date(66000),
+      },
+    ];
+    const result = createStreamPresentation()({ ...options, tail, head: [] });
+    expect(
+      result.tail.filter((item) => item.kind === "assistant_message").map((item) => item.text),
+    ).toEqual(["# Result", "The full final answer.", "Further result details."]);
+  });
+  it("keeps ordinary answers without process unchanged", () => {
+    const present = createStreamPresentation();
+    const items = response();
+    const result = present({ ...options, tail: [items[0]!, items[3]!], head: [] });
+    expect(result.processGroupsByHostId.size).toBe(0);
+    expect(result.tail.filter((i) => i.kind === "assistant_message").map((i) => i.text)).toEqual([
+      "# Result",
+      "The full final answer.",
+    ]);
+  });
+});

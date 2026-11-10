@@ -2,6 +2,7 @@ import { getDesktopHost, type DesktopDialogBridge } from "./host";
 
 export async function pickDirectory(
   dialog: DesktopDialogBridge | null = getDesktopHost()?.dialog ?? null,
+  defaultPath?: string,
 ): Promise<string | null> {
   const open = dialog?.open;
   if (typeof open !== "function") {
@@ -12,6 +13,7 @@ export async function pickDirectory(
     directory: true,
     multiple: false,
     createDirectory: true,
+    ...(defaultPath ? { defaultPath } : {}),
   });
   if (selection === null) {
     return null;

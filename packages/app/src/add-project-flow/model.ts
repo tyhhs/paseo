@@ -3,6 +3,7 @@ export interface AddProjectHost {
   label: string;
   canAddProject: boolean;
   canBrowse: boolean;
+  browseRootDirectory?: string;
   canCloneGithubRepositories: boolean;
   canSearchGithubRepositories: boolean;
   canCreateDirectory: boolean;
@@ -30,6 +31,12 @@ export type AddProjectPage =
   | ({ kind: "host" } & SearchPageState)
   | ({ kind: "method"; hostId: string; isSubmitting: boolean } & PageState)
   | ({ kind: "directory-search"; hostId: string; isSubmitting: boolean } & SearchPageState)
+  | ({
+      kind: "directory-browse";
+      hostId: string;
+      directory: string;
+      isSubmitting: boolean;
+    } & SearchPageState)
   | ({ kind: "github-search"; hostId: string } & SearchPageState)
   | ({
       kind: "github-location";
@@ -155,6 +162,30 @@ export function openDirectorySearchPage(
     hostId,
     isSubmitting: false,
   });
+}
+
+export function openDirectoryBrowsePage(
+  state: AddProjectFlowState,
+  hostId: string,
+  directory = state.hosts.find((host) => host.serverId === hostId)?.browseRootDirectory ?? "/",
+): AddProjectFlowState {
+  return pushAddProjectPage(state, {
+    ...searchPage("directory-browse"),
+    hostId,
+    directory,
+    isSubmitting: false,
+  });
+}
+
+export function navigateAddProjectDirectory(
+  state: AddProjectFlowState,
+  directory: string,
+): AddProjectFlowState {
+  return updateCurrentAddProjectPage(state, (page) =>
+    page.kind === "directory-browse"
+      ? { ...page, directory, query: "", activeIndex: 0, error: null }
+      : page,
+  );
 }
 
 export function openGithubSearchPage(

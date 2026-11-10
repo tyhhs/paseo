@@ -247,6 +247,8 @@ export const fr: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "Déroulement",
+    turnProcessDuration: "Durée : {{duration}}",
     empty: "Commencez à discuter avec cet agent…",
     scrollToBottom: "Faire défiler vers le bas",
     historyLoadFailed: "Impossible de charger l’historique de l’agent",
@@ -1237,7 +1239,7 @@ export const fr: TranslationResources = {
         current: "Suivre la conversation active",
         multiple: "Plusieurs hôtes",
         label: "Hôte",
-        all: "Tous les hôtes",
+        all: "Tous",
       },
       projectFilter: {
         label: "Projet",
@@ -2342,9 +2344,9 @@ export const fr: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "En-tête",
+          title: "Navigation et extensions",
           description:
-            "Choisissez les éléments affichés en haut de la barre latérale et leur ordre",
+            "Choisissez les éléments de navigation du bas, les extensions en haut et leur ordre",
         },
         footer: {
           title: "Pied de page",
@@ -2495,6 +2497,12 @@ export const fr: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "Dossier initial",
+        edit: "Dossier initial de navigation",
+        invalidPath: "Saisissez un chemin de dossier absolu",
+        hostUnavailable: "Connectez-vous à cet hôte avant de sauvegarder",
+      },
       password: {
         guidance:
           "Supprimez cet hôte puis ajoutez-le à nouveau avec le mot de passe demandé par ce daemon.",

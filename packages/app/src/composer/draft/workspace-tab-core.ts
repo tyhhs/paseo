@@ -1,4 +1,16 @@
 import { resolveSubmissionReadiness } from "@/provider-selection/provider-selection";
+import { Buffer } from "buffer";
+import { hash } from "fast-sha256";
+
+export function buildDraftIdempotencyKey(draftId: string, options: unknown): string {
+  const fingerprint = JSON.stringify(options, (_key, value: unknown) =>
+    value && typeof value === "object" && !Array.isArray(value)
+      ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)))
+      : value,
+  );
+  // Draft submission also runs on HTTP LAN origins where WebCrypto is unavailable.
+  return `${draftId}:${Buffer.from(hash(Buffer.from(fingerprint, "utf8"))).toString("hex")}`;
+}
 
 export interface WorkspaceDraftAutoSubmitConfig {
   provider: string;

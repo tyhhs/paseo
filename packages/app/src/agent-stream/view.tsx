@@ -27,11 +27,12 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useMutation } from "@tanstack/react-query";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { Check, ChevronDown, X } from "lucide-react-native";
+import { Check, ChevronDown, Clock, X } from "lucide-react-native";
 import { buildWorkspaceTabPersistenceKey } from "@/workspace-tabs/model";
 import { openExplorerSidebarView } from "@/workspace-tabs/explorer-sidebar";
 import {
   AssistantMessage,
+  ExpandableBadge,
   SpeakMessage,
   UserMessage,
   Notification,
@@ -63,7 +64,11 @@ import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { ToolCallDetailsContent } from "@/components/tool-call-details";
 import { QuestionFormCard } from "@/components/question-form-card";
 import { ToolCallSheetProvider } from "@/components/tool-call-sheet";
-import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
+import {
+  createStreamPresentation,
+  getStreamItemMessageId,
+  type TurnProcessGroup,
+} from "./presentation";
 import { OverviewToolCallGroupView } from "@/tool-calls/detail-level/overview/view";
 import { type AgentStreamRenderModel, buildAgentStreamRenderModel } from "./model";
 import { resolveStreamRenderStrategy } from "./strategy-resolver";
@@ -102,11 +107,44 @@ import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store"
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { useForkAgent } from "@/hooks/use-fork-agent";
 import { isWeb } from "@/constants/platform";
+import { formatDuration } from "@/utils/time";
 import type { Theme } from "@/styles/theme";
 import { recordRenderProfileReasons } from "@/utils/render-profiler";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { useStreamHistoryWindow } from "./use-stream-history-window";
 import { PluginTimelineItemView, useInstalledTimelineTransform } from "@/plugins/timeline";
+
+function TurnProcessHeader({
+  group,
+  expanded,
+  onExpandedChange,
+}: {
+  group: TurnProcessGroup;
+  expanded: boolean;
+  onExpandedChange: (id: string, expanded: boolean) => void;
+}) {
+  const { t } = useTranslation();
+  const toggle = useCallback(
+    () => onExpandedChange(group.id, !expanded),
+    [group.id, expanded, onExpandedChange],
+  );
+  return (
+    <ExpandableBadge
+      label={
+        group.durationMs === null
+          ? t("agentStream.turnProcess")
+          : t("agentStream.turnProcessDuration", { duration: formatDuration(group.durationMs) })
+      }
+      icon={Clock}
+      isExpanded={expanded}
+      onToggle={toggle}
+      isError={group.hasError}
+      disableOuterSpacing
+      borderlessWhenExpanded
+      testID="turn-process-toggle"
+    />
+  );
+}
 
 function renderLiveAuxiliaryNode(input: {
   pendingPermissions: ReactNode;
@@ -377,9 +415,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const [expandedInlineToolCallIds, setExpandedInlineToolCallIds] = useState<Set<string>>(
       new Set(),
     );
-    const [expandedToolCallGroupIds, setExpandedToolCallGroupIds] = useState<Set<string>>(
-      new Set(),
-    );
+    const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set());
 
     // Get serverId (fallback to agent's serverId if not provided)
     const resolvedServerId = resolveStreamServerId(serverId, context.serverId);
@@ -447,7 +483,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     useEffect(() => {
       setIsNearBottom(true);
       setExpandedInlineToolCallIds(new Set());
-      setExpandedToolCallGroupIds(new Set());
+      setExpandedGroupIds(new Set());
     }, [viewportIdentity]);
 
     const handleInlinePathPress = useStableEvent(
@@ -557,8 +593,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           transform: transformTimelineItem,
           level: toolCallDetailLevel,
           isTurnActive,
+          expandedGroupIds,
         }),
       [
+        expandedGroupIds,
         presentStream,
         effectiveStreamItems,
         effectiveStreamHead,
@@ -576,6 +614,12 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       agentId: viewportIdentity,
       items: presentation.tail,
       loadRemoteOlder,
+    });
+    const revealLoadedMessage = useStableEvent((messageId?: string) => {
+      const groupId = messageId && presentation.processGroupByMessageId.get(messageId);
+      const opening = Boolean(groupId && !expandedGroupIds.has(groupId));
+      if (opening && groupId) setGroupExpanded(groupId, true);
+      return revealLoadedHistory(opening ? groupId : messageId) || opening;
     });
     const isLoadingOlder = remoteIsLoadingOlder;
     const hasOlder = hasLocalHistory || remoteHasOlder;
@@ -640,7 +684,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       viewportRef,
       onJumpError: handleTimelineHistoryLoadError,
       visibleMessageIds,
-      revealLoadedMessage: revealLoadedHistory,
+      revealLoadedMessage,
     });
 
     useImperativeHandle(
@@ -689,8 +733,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       [streamRenderStrategy],
     );
 
-    const setToolCallGroupExpanded = useCallback((groupId: string, expanded: boolean) => {
-      setExpandedToolCallGroupIds((previous) => {
+    const setGroupExpanded = useCallback((groupId: string, expanded: boolean) => {
+      setExpandedGroupIds((previous) => {
         const next = new Set(previous);
         if (expanded) {
           next.add(groupId);
@@ -845,13 +889,13 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         if (!group) {
           return renderSingleToolCallItem(item, layoutItem.isLastInToolSequence);
         }
-        const expanded = expandedToolCallGroupIds.has(group.run.id);
+        const expanded = expandedGroupIds.has(group.run.id);
         return (
           <OverviewToolCallGroupView
             group={group}
             expanded={expanded}
             isLastInSequence={layoutItem.isLastInToolSequence}
-            onExpandedChange={setToolCallGroupExpanded}
+            onExpandedChange={setGroupExpanded}
           >
             {expanded
               ? group.run.calls.map((call, index) => (
@@ -867,17 +911,24 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           </OverviewToolCallGroupView>
         );
       },
-      [
-        expandedToolCallGroupIds,
-        getToolCallGroup,
-        renderSingleToolCallItem,
-        setToolCallGroupExpanded,
-      ],
+      [expandedGroupIds, getToolCallGroup, renderSingleToolCallItem, setGroupExpanded],
     );
 
+    const getProcessGroup = useStableEvent((id: string) =>
+      presentation.processGroupsByHostId.get(id),
+    );
     const renderStreamItemContent = useCallback(
       (layoutItem: StreamLayoutItem) => {
         const item = layoutItem.item;
+        const process = getProcessGroup(item.id);
+        if (process)
+          return (
+            <TurnProcessHeader
+              group={process}
+              expanded={expandedGroupIds.has(process.id)}
+              onExpandedChange={setGroupExpanded}
+            />
+          );
         switch (item.kind) {
           case "user_message":
             return renderUserMessageItem(layoutItem, item);
@@ -917,6 +968,9 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       },
       [
         agentId,
+        getProcessGroup,
+        expandedGroupIds,
+        setGroupExpanded,
         renderUserMessageItem,
         renderAssistantMessageItem,
         renderThoughtItem,
@@ -1105,10 +1159,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const historyRowRevision = useMemo(
       () => ({
         contentById: presentation.historyGroupUpdatesByHostId,
-        displayStateById: expandedToolCallGroupIds,
+        displayStateById: expandedGroupIds,
         globalDisplayState: isMobile,
       }),
-      [expandedToolCallGroupIds, isMobile, presentation.historyGroupUpdatesByHostId],
+      [expandedGroupIds, isMobile, presentation.historyGroupUpdatesByHostId],
     );
 
     const findItems = useMemo(
@@ -1122,7 +1176,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         epoch={timelineEpoch}
         items={findItems}
         viewportRef={viewportRef}
-        revealLoadedMessage={revealLoadedHistory}
+        revealLoadedMessage={revealLoadedMessage}
         visibleMessageIds={visibleMessageIds}
       >
         <ToolCallSheetProvider>
@@ -1132,7 +1186,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                 agentId: viewportIdentity,
                 segments: renderModel.segments,
                 historyRowRevision,
-                liveHeadRowRevision: expandedToolCallGroupIds,
+                liveHeadRowRevision: expandedGroupIds,
                 boundary,
                 renderers,
                 listEmptyComponent,

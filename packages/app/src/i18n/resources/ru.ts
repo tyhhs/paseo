@@ -242,6 +242,8 @@ export const ru: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "Ход работы",
+    turnProcessDuration: "Затрачено {{duration}}",
     empty: "Начните общаться с этим агентом...",
     scrollToBottom: "Прокрутить вниз",
     historyLoadFailed: "Не удалось загрузить историю агента",
@@ -1223,7 +1225,7 @@ export const ru: TranslationResources = {
         current: "Следовать текущему чату",
         multiple: "Несколько хостов",
         label: "Хост",
-        all: "Все хосты",
+        all: "Все",
       },
       projectFilter: {
         label: "Проект",
@@ -2326,9 +2328,9 @@ export const ru: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "Верх",
+          title: "Навигация и плагины",
           description:
-            "Выберите, какие элементы отображаются вверху боковой панели и в каком порядке",
+            "Выберите нижние пункты навигации, плагины вверху боковой панели и их порядок",
         },
         footer: {
           title: "Низ",
@@ -2477,6 +2479,12 @@ export const ru: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "Начальный каталог",
+        edit: "Начальный каталог просмотра",
+        invalidPath: "Введите абсолютный путь к каталогу",
+        hostUnavailable: "Подключитесь к этому хосту перед сохранением",
+      },
       password: {
         guidance:
           "Удалите этот хост и добавьте его снова с паролем, который запрашивает этот демон.",

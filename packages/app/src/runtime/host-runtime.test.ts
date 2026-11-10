@@ -1950,6 +1950,41 @@ describe("HostRuntimeStore", () => {
     store.syncHosts([]);
   });
 
+  it("persists a browse root per host and leaves it unchanged on invalid input or failed writes", async () => {
+    const storage = createMemoryHostRuntimeStorage();
+    await storage.setItem(
+      "@paseo:daemon-registry",
+      JSON.stringify([makeHost({ serverId: "srv_browse" }), makeHost({ serverId: "srv_other" })]),
+    );
+    await storage.setItem("@paseo:e2e", "1");
+    const store = createAppearanceStore(storage);
+    const loaded = onceHostListMatches(store, () => store.isHostRegistryLoaded());
+    store.boot();
+    await loaded;
+    await store.setHostBrowseRootDirectory("srv_browse", " /home/user/repos ");
+    expect(
+      store.getHosts().find((host) => host.serverId === "srv_browse")?.browseRootDirectory,
+    ).toBe("/home/user/repos");
+    expect(
+      store.getHosts().find((host) => host.serverId === "srv_other")?.browseRootDirectory,
+    ).toBeUndefined();
+    const persisted = JSON.parse((await storage.getItem("@paseo:daemon-registry"))!);
+    expect(
+      persisted.find((host: HostProfile) => host.serverId === "srv_browse").browseRootDirectory,
+    ).toBe("/home/user/repos");
+    await expect(store.setHostBrowseRootDirectory("srv_browse", "relative")).rejects.toThrow();
+    storage.setItem = async () => {
+      throw new Error("disk full");
+    };
+    await expect(store.setHostBrowseRootDirectory("srv_browse", "/different")).rejects.toThrow(
+      "disk full",
+    );
+    expect(
+      store.getHosts().find((host) => host.serverId === "srv_browse")?.browseRootDirectory,
+    ).toBe("/home/user/repos");
+    store.syncHosts([]);
+  });
+
   it("records a chosen badge display without disturbing the color", async () => {
     const host = makeHost({
       serverId: "srv_appearance",

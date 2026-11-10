@@ -242,6 +242,8 @@ export const ja: TranslationResources = {
     },
   },
   agentStream: {
+    turnProcess: "作業の詳細",
+    turnProcessDuration: "所要時間 {{duration}}",
     empty: "このエージェントとチャットを始めましょう...",
     scrollToBottom: "下にスクロール",
     historyLoadFailed: "エージェントの履歴を読み込めませんでした",
@@ -1219,7 +1221,7 @@ export const ja: TranslationResources = {
         current: "現在の会話に追従",
         multiple: "複数のホスト",
         label: "ホスト",
-        all: "すべてのホスト",
+        all: "すべて",
       },
       projectFilter: {
         label: "プロジェクト",
@@ -2308,8 +2310,8 @@ export const ja: TranslationResources = {
       },
       sidebar: {
         header: {
-          title: "ヘッダー",
-          description: "サイドバー上部に表示する項目とその順序を選択します",
+          title: "ナビゲーションとプラグイン",
+          description: "下部ナビゲーション項目とサイドバー上部のプラグイン、および順序を選択",
         },
         footer: {
           title: "フッター",
@@ -2459,6 +2461,12 @@ export const ja: TranslationResources = {
       },
     },
     host: {
+      browse: {
+        label: "開始ディレクトリ",
+        edit: "参照の開始ディレクトリ",
+        invalidPath: "ディレクトリの絶対パスを入力してください",
+        hostUnavailable: "保存する前にこのホストに接続してください",
+      },
       password: {
         guidance:
           "このホストを削除し、このデーモンが求めるパスワードを入力して追加し直してください。",

@@ -1,8 +1,13 @@
 import { router, usePathname } from "expo-router";
 import { CalendarClock, History, Plus, Search } from "lucide-react-native";
-import { memo, useCallback, useMemo, useRef, type ComponentType } from "react";
+import { memo, useCallback, useMemo, useRef, type ComponentProps, type ComponentType } from "react";
 import { useTranslation } from "react-i18next";
-import { View, type StyleProp, type ViewStyle } from "react-native";
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { DensityIcon } from "@/components/ui/density-icon";
+import { Shortcut } from "@/components/ui/shortcut";
+import { density } from "@/styles/density";
+import { StyleSheet } from "react-native-unistyles";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
 import { PluginSidebarItem } from "@/plugins/sidebar-items";
@@ -25,6 +30,7 @@ import {
 
 interface SidebarNavRowProps {
   onBeforeNavigate?: () => void;
+  footerIcon?: boolean;
 }
 
 interface SidebarNavRowsProps extends SidebarNavRowProps {
@@ -75,6 +81,7 @@ export function SidebarNavRows({
 
 const SidebarNewWorkspaceRow = memo(function SidebarNewWorkspaceRow({
   onBeforeNavigate,
+  footerIcon,
 }: SidebarNavRowProps) {
   const { t } = useTranslation();
   const shortcutKeys = useShortcutKeys(builtinSidebarNavShortcutAction("new-workspace"));
@@ -109,7 +116,8 @@ const SidebarNewWorkspaceRow = memo(function SidebarNewWorkspaceRow({
   }, [activeWorkspace, activeWorkspaceServerId, canUseActiveWorkspaceContext, onBeforeNavigate]);
 
   return (
-    <SidebarHeaderRow
+    <SidebarNavItem
+      footerIcon={footerIcon}
       icon={Plus}
       label={t(builtinSidebarNavLabelKey("new-workspace"))}
       onPress={handlePress}
@@ -120,7 +128,7 @@ const SidebarNewWorkspaceRow = memo(function SidebarNewWorkspaceRow({
   );
 });
 
-function SidebarHistoryRow({ onBeforeNavigate }: SidebarNavRowProps) {
+function SidebarHistoryRow({ onBeforeNavigate, footerIcon }: SidebarNavRowProps) {
   const { t } = useTranslation();
   const pathname = usePathname();
   const handlePress = useCallback(() => {
@@ -129,7 +137,8 @@ function SidebarHistoryRow({ onBeforeNavigate }: SidebarNavRowProps) {
   }, [onBeforeNavigate]);
 
   return (
-    <SidebarHeaderRow
+    <SidebarNavItem
+      footerIcon={footerIcon}
       icon={History}
       label={t(builtinSidebarNavLabelKey("history"))}
       onPress={handlePress}
@@ -140,7 +149,7 @@ function SidebarHistoryRow({ onBeforeNavigate }: SidebarNavRowProps) {
   );
 }
 
-function SidebarSearchRow({ onBeforeNavigate }: SidebarNavRowProps) {
+function SidebarSearchRow({ onBeforeNavigate, footerIcon }: SidebarNavRowProps) {
   const { t } = useTranslation();
   const shortcutKeys = useShortcutKeys(builtinSidebarNavShortcutAction("search"));
   const setCommandCenterOpen = useKeyboardShortcutsStore((state) => state.setCommandCenterOpen);
@@ -150,7 +159,8 @@ function SidebarSearchRow({ onBeforeNavigate }: SidebarNavRowProps) {
   }, [onBeforeNavigate, setCommandCenterOpen]);
 
   return (
-    <SidebarHeaderRow
+    <SidebarNavItem
+      footerIcon={footerIcon}
       icon={Search}
       label={t(builtinSidebarNavLabelKey("search"))}
       onPress={handlePress}
@@ -161,7 +171,7 @@ function SidebarSearchRow({ onBeforeNavigate }: SidebarNavRowProps) {
   );
 }
 
-function SidebarSchedulesRow({ onBeforeNavigate }: SidebarNavRowProps) {
+function SidebarSchedulesRow({ onBeforeNavigate, footerIcon }: SidebarNavRowProps) {
   const { t } = useTranslation();
   const pathname = usePathname();
   const handlePress = useCallback(() => {
@@ -170,7 +180,8 @@ function SidebarSchedulesRow({ onBeforeNavigate }: SidebarNavRowProps) {
   }, [onBeforeNavigate]);
 
   return (
-    <SidebarHeaderRow
+    <SidebarNavItem
+      footerIcon={footerIcon}
       icon={CalendarClock}
       label={t(builtinSidebarNavLabelKey("schedules"))}
       onPress={handlePress}
@@ -187,3 +198,74 @@ const BUILTIN_ROWS: Record<BuiltinSidebarNavId, ComponentType<SidebarNavRowProps
   search: SidebarSearchRow,
   schedules: SidebarSchedulesRow,
 };
+
+function SidebarNavItem({
+  footerIcon,
+  ...props
+}: ComponentProps<typeof SidebarHeaderRow> & { footerIcon?: boolean }) {
+  const accessibilityState = useMemo(
+    () => ({ selected: props.isActive ?? false }),
+    [props.isActive],
+  );
+  if (!footerIcon) return <SidebarHeaderRow {...props} />;
+  return (
+    <View style={styles.footerItem}>
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={props.label}
+            accessibilityState={accessibilityState}
+            testID={props.testID}
+            onPress={props.onPress}
+            style={styles.footerButton}
+          >
+            {({ hovered, pressed }) =>
+              props.icon ? (
+                <DensityIcon
+                  icon={props.icon}
+                  size="md"
+                  color={hovered || pressed || props.isActive ? "foreground" : "foregroundMuted"}
+                />
+              ) : null
+            }
+          </Pressable>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="center" offset={8} testID={`${props.testID}-tooltip`}>
+          <View style={styles.tooltipRow}>
+            <Text style={styles.tooltipText}>{props.label}</Text>
+            {props.shortcutKeys ? <Shortcut chord={props.shortcutKeys} /> : null}
+          </View>
+        </TooltipContent>
+      </Tooltip>
+    </View>
+  );
+}
+
+export function SidebarFooterNavigation({ onBeforeNavigate }: SidebarNavRowProps) {
+  const { items } = useSidebarNavItems("header");
+  const visibleItems = items.filter((item) => item.visible && item.kind === "builtin");
+  if (!visibleItems.length) return null;
+  return (
+    <View style={styles.footerNavigation} testID="sidebar-footer-navigation">
+      {visibleItems.map((item) => {
+        if (item.kind !== "builtin") return null;
+        const Row = BUILTIN_ROWS[item.id];
+        return <Row key={item.key} footerIcon onBeforeNavigate={onBeforeNavigate} />;
+      })}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create((theme) => ({
+  footerNavigation: { flexDirection: "row", alignItems: "center" },
+  footerItem: { width: density.iconButton, height: density.iconButton },
+  footerButton: {
+    width: density.iconButton,
+    height: density.iconButton,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tooltipRow: { flexDirection: "row", alignItems: "center", gap: theme.spacing[2] },
+  tooltipText: { fontSize: theme.fontSize.base, color: theme.colors.popoverForeground },
+}));
