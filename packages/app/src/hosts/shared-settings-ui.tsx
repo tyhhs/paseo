@@ -16,18 +16,22 @@ export function SharedHostSettingsBootstrap() {
   useEffect(() => {
     if (!isWeb || !loaded || state.status === "disabled") return;
     const store = getHostRuntimeStore();
-    const params = new URLSearchParams(window.location.hash.slice(1));
-    const token = params.get("settingsSync");
-    if (token) {
-      params.delete("settingsSync");
-      const fragment = params.toString();
-      window.history.replaceState(
-        null,
-        "",
-        window.location.pathname + window.location.search + (fragment ? `#${fragment}` : ""),
-      );
-      void store.connectSharedHostSettings(token).catch(() => undefined);
-    }
+    const activate = () => {
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const token = params.get("settingsSync");
+      if (token) {
+        params.delete("settingsSync");
+        const fragment = params.toString();
+        window.history.replaceState(
+          window.history.state,
+          "",
+          window.location.pathname + window.location.search + (fragment ? `#${fragment}` : ""),
+        );
+        void store.connectSharedHostSettings(token).catch(() => undefined);
+      }
+    };
+    activate();
+    window.addEventListener("hashchange", activate);
     const refresh = () => {
       if (document.visibilityState === "visible")
         void store.refreshSharedHostSettings().catch(() => undefined);
@@ -38,6 +42,7 @@ export function SharedHostSettingsBootstrap() {
     return () => {
       clearInterval(timer);
       window.removeEventListener("focus", refresh);
+      window.removeEventListener("hashchange", activate);
       document.removeEventListener("visibilitychange", refresh);
     };
   }, [loaded, state.status]);
