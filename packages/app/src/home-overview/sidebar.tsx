@@ -1,7 +1,9 @@
 import { navigateToAgent } from "@/utils/navigate-to-agent";
+import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useHomeOverview } from "./use-home-overview";
 import { ActiveSessionSidebarView } from "./sidebar-view";
 const openSession = (serverId: string, agentId: string) => {
+  useSidebarViewStore.getState().selectHostFilter(serverId);
   navigateToAgent({ serverId, agentId });
 };
 export function ActiveSessionSidebar({
