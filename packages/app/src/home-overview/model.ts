@@ -133,25 +133,17 @@ function collapseConversationGroups(
   }
 }
 
-/** Calendar day in the viewer's local timezone; status changes never reorder existing rows. */
-export function todaySessions(
-  sessions: readonly HomeSession[],
-  now: Date,
-  previousKeys: readonly string[] = [],
-): HomeSession[] {
+/** Calendar day in the viewer's timezone, newest activity first. */
+export function todaySessions(sessions: readonly HomeSession[], now: Date): HomeSession[] {
   const start = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
   const key = (row: HomeSession) => JSON.stringify([row.agent.serverId, row.agent.id]);
-  const ranks = new Map(previousKeys.map((value, index) => [value, index]));
   return sessions
     .filter((row) => {
       const time = row.agent.lastActivityAt.getTime();
       return time >= start && time < end;
     })
     .sort((a, b) => {
-      const ar = ranks.get(key(a)),
-        br = ranks.get(key(b));
-      if (ar !== undefined || br !== undefined) return (ar ?? Infinity) - (br ?? Infinity);
       return (
         b.agent.lastActivityAt.getTime() - a.agent.lastActivityAt.getTime() ||
         key(a).localeCompare(key(b))

@@ -5,7 +5,7 @@ import { useDismissedSessions } from "./sidebar-dismissed";
 import { ResizeHandle } from "@/components/resize-handle";
 import { resolveActiveSessionHeight, useActiveSessionHeight } from "./sidebar-height";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { FlatList, Pressable, Text, View, useWindowDimensions } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
@@ -59,7 +59,6 @@ export function ActiveSessionSidebarView({
   const [day, setDay] = useState(() => new Date().toDateString());
   const dismissals = useDismissedSessions();
   const dismissSession = useStableEvent((key: string) => dismissals.dismiss(day, key));
-  const ordering = useRef<{ day: string; keys: string[] }>({ day, keys: [] });
   useEffect(() => {
     const now = new Date();
     const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
@@ -69,15 +68,7 @@ export function ActiveSessionSidebarView({
     );
     return () => clearTimeout(timer);
   }, [day]);
-  const active = useMemo(() => {
-    const rows = todaySessions(
-      sessions,
-      new Date(),
-      ordering.current.day === day ? ordering.current.keys : [],
-    );
-    ordering.current = { day, keys: rows.map(sessionKey) };
-    return rows;
-  }, [sessions, day]);
+  const active = useMemo(() => todaySessions(sessions, new Date(day)), [sessions, day]);
   const visibleSessions = useMemo(
     () =>
       active.filter(
@@ -195,13 +186,23 @@ function ActiveSessionRow({
         style={pressableStyle}
       >
         <View style={styles.line}>
-          <Text numberOfLines={1} style={styles.title}>
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={styles.title}
+            testID="sidebar-active-title"
+          >
             {item.agent.title || item.agent.provider}
           </Text>
+          <Text
+            numberOfLines={1}
+            ellipsizeMode="tail"
+            style={styles.meta}
+            testID="sidebar-active-host"
+          >
+            {item.agent.serverLabel}
+          </Text>
         </View>
-        <Text numberOfLines={1} style={styles.meta}>
-          {item.agent.serverLabel} · {item.agent.provider}
-        </Text>
       </Pressable>
       <View
         style={[
@@ -285,7 +286,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   resizeBoundary: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 10 },
   compactSection: { maxHeight: "40%" },
-  compactRow: { minHeight: 48 },
+  compactRow: { minHeight: 48, paddingRight: 96 },
   heading: {
     flexDirection: "row",
     alignItems: "center",
@@ -305,7 +306,13 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: 16,
   },
   label: { fontSize: theme.fontSize.sm, color: theme.colors.foregroundMuted },
-  meta: { fontSize: theme.fontSize.sm, color: theme.colors.foregroundMuted },
+  meta: {
+    fontSize: theme.fontSize.sm,
+    color: theme.colors.foregroundMuted,
+    flexGrow: 1,
+    flexBasis: 0,
+    minWidth: 0,
+  },
   list: { flexGrow: 0, flexShrink: 1 },
   row: {
     marginHorizontal: 8,
@@ -313,7 +320,8 @@ const styles = StyleSheet.create((theme) => ({
     paddingLeft: 10,
     paddingRight: 80,
     paddingVertical: 7,
-    gap: 3,
+    minHeight: 36,
+    justifyContent: "center",
   },
   hover: { backgroundColor: theme.colors.surface2 },
   line: { flexDirection: "row", alignItems: "center", gap: 8 },
@@ -345,7 +353,13 @@ const styles = StyleSheet.create((theme) => ({
   signalDanger: { backgroundColor: theme.colors.statusDotDanger },
   signalWarning: { backgroundColor: theme.colors.statusDotWarning },
   signalUnknown: { backgroundColor: theme.colors.foregroundExtraMuted },
-  title: { fontSize: theme.fontSize.base, color: theme.colors.foreground, flex: 1 },
+  title: {
+    fontSize: theme.fontSize.base,
+    color: theme.colors.foreground,
+    flexGrow: 3,
+    flexBasis: 0,
+    minWidth: 0,
+  },
   empty: {
     fontSize: theme.fontSize.sm,
     color: theme.colors.foregroundMuted,

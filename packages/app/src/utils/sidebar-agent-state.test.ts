@@ -206,19 +206,41 @@ describe("today sidebar sessions", () => {
     expect(todaySessions(rows, now).map((r) => r.agent.id)).toEqual(["idle", "today"]);
     expect(todaySessions(rows, new Date(2026, 10, 4))).toEqual([]);
   });
-  it("preserves row positions across status and activity changes, appending new sessions", () => {
+  it("reorders existing and new sessions by latest activity, independent of status", () => {
     const now = new Date(2026, 10, 3, 12);
     const hosts = [{ serverId: "mac", label: "Mac", fresh: true, connected: true }];
     const rows = buildHomeSessions(
       [
-        overviewAgent({ id: "a", status: "running", lastActivityAt: now }),
-        overviewAgent({ id: "b", attentionReason: "finished", lastActivityAt: now }),
+        overviewAgent({ id: "a", status: "running", lastActivityAt: new Date(2026, 10, 3, 9) }),
+        overviewAgent({
+          id: "b",
+          attentionReason: "finished",
+          lastActivityAt: new Date(2026, 10, 3, 10),
+        }),
         overviewAgent({ id: "new", lastActivityAt: now }),
       ],
       hosts,
     );
-    const keys = ["a", "b"].map((id) => JSON.stringify(["mac", id]));
-    expect(todaySessions(rows, now, keys).map((r) => r.agent.id)).toEqual(["a", "b", "new"]);
+    expect(todaySessions(rows, now).map((r) => r.agent.id)).toEqual(["new", "b", "a"]);
+    rows.find((row) => row.agent.id === "a")!.agent.lastActivityAt = new Date(2026, 10, 3, 13);
+    expect(todaySessions(rows, new Date(2026, 10, 3, 14)).map((r) => r.agent.id)).toEqual([
+      "a",
+      "new",
+      "b",
+    ]);
+  });
+  it("uses a stable identity order for tied activity without changing the input", () => {
+    const now = new Date(2026, 10, 3, 12);
+    const rows = buildHomeSessions(
+      [
+        overviewAgent({ id: "b", status: "running", lastActivityAt: now }),
+        overviewAgent({ id: "a", status: "idle", lastActivityAt: now }),
+      ],
+      [{ serverId: "mac", label: "Mac", fresh: true, connected: true }],
+    );
+    const before = rows.map((row) => row.agent.id);
+    expect(todaySessions(rows, now).map((row) => row.agent.id)).toEqual(["a", "b"]);
+    expect(rows.map((row) => row.agent.id)).toEqual(before);
   });
 });
 
