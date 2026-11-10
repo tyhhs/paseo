@@ -52,6 +52,7 @@ import {
 import { ProvidersSection } from "@/screens/settings/providers-section";
 import { HostUsageSection } from "@/usage";
 import { HostAppearanceSection } from "@/screens/settings/host-appearance-section";
+import { SharedHostSettingsSection } from "@/hosts/shared-settings-ui";
 import { HostBrowseDirectorySection } from "@/screens/settings/host-browse-directory-section";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { useSessionStore } from "@/stores/session-store";
@@ -375,6 +376,7 @@ export function HostSettingsPage({
       <HostConnectionError serverId={serverId} />
 
       <HostAppearanceSection host={host} />
+      <SharedHostSettingsSection />
       <HostBrowseDirectorySection key={host.serverId} host={host} />
 
       {isLocalDaemon ? <LocalDaemonSection /> : null}

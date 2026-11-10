@@ -1,4 +1,14 @@
 export const en = {
+  sharedHostSettings: {
+    title: "Shared host settings",
+    hint: "Share host names, colors, badges and Browse roots across browsers. Pairing credentials stay on this device.",
+    disconnected: "Not connected · using device settings",
+    connected: "Connected · synced to this web server",
+    error: "Sync failed · local display retained",
+    connect: "Connect sync",
+    refresh: "Refresh",
+    key: "Shared settings key",
+  },
   homeOverview: {
     removeToday: "Remove {{name}} from today’s list",
     removeTodayHint: "Hide for today; keep the conversation",

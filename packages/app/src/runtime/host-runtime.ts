@@ -87,6 +87,14 @@ import { projectIconCache } from "@/projects/icon-cache";
 import { nativePerformanceTrace } from "@/performance/native-trace";
 import { revokePushNotifications } from "@/push-notifications";
 import { createAppWebSocketFactory } from "./websocket-factory";
+import {
+  applySharedHostSettings,
+  createSharedHostSettingsClient,
+  type SharedHostSettingsClient,
+  type SharedHostSettingsDocument,
+  type SharedHostSettingsPatch,
+  type SharedHostSettingsState,
+} from "@/hosts/shared-settings";
 
 export type HostRuntimeConnectionStatus = "idle" | "connecting" | "online" | "offline" | "error";
 export type PairingNavigationTarget = "openProject" | "hostRoot" | "hostSettings";
@@ -1406,6 +1414,7 @@ export class HostRuntimeController {
 }
 
 const REGISTRY_STORAGE_KEY = "@paseo:daemon-registry";
+const SHARED_SETTINGS_TOKEN_KEY = "@paseo:shared-host-settings-token";
 const LOCALHOST_FALLBACK_ENDPOINT = "localhost:6767";
 const DEFAULT_LOCALHOST_BOOTSTRAP_TIMEOUT_MS = 2500;
 const E2E_STORAGE_KEY = "@paseo:e2e";
@@ -1497,6 +1506,10 @@ export class HostRuntimeStore {
   private hostRegistryLoaded = false;
   private hosts: HostProfile[] = [];
   private hostPreferencesMutationTail: Promise<void> = Promise.resolve();
+  private sharedSettingsClient: SharedHostSettingsClient | null;
+  private sharedSettingsToken: string | null = null;
+  private sharedSettings: SharedHostSettingsDocument = { revision: 0, hosts: {} };
+  private sharedSettingsState: SharedHostSettingsState = { status: "disabled", error: null };
   private hostRegistryStatus: HostRegistryStatus = "loading";
   private deps: HostRuntimeControllerDeps;
   private lastConnectionStatusByServer = new Map<string, HostRuntimeConnectionStatus>();
@@ -1518,9 +1531,14 @@ export class HostRuntimeStore {
     storage?: HostRuntimeStorage;
     replicaRowStore?: ReplicaRowStore;
     revokePushNotifications?: typeof revokePushNotifications;
+    sharedSettingsClient?: SharedHostSettingsClient | null;
   }) {
     this.deps = input?.deps ?? createDefaultDeps();
     this.storage = input?.storage ?? AsyncStorage;
+    this.sharedSettingsClient =
+      input?.sharedSettingsClient === undefined
+        ? createSharedHostSettingsClient()
+        : input.sharedSettingsClient;
     this.replicaCache = new ReplicaCache(input?.replicaRowStore ?? createReplicaRowStore());
     this.revokePushNotifications = input?.revokePushNotifications ?? revokePushNotifications;
   }
@@ -1662,6 +1680,99 @@ export class HostRuntimeStore {
     }
     this.hostRegistryLoaded = true;
     this.emitHostList();
+    void this.initializeSharedHostSettings();
+  }
+
+  getSharedHostSettingsState(): SharedHostSettingsState {
+    return this.sharedSettingsState;
+  }
+
+  private setSharedHostSettingsState(
+    status: SharedHostSettingsState["status"],
+    error: string | null = null,
+  ): void {
+    if (this.sharedSettingsState.status === status && this.sharedSettingsState.error === error)
+      return;
+    this.sharedSettingsState = { status, error };
+    this.emitHostList();
+  }
+
+  private async initializeSharedHostSettings(): Promise<void> {
+    if (!this.sharedSettingsClient || !(await this.sharedSettingsClient.discover())) return;
+    this.setSharedHostSettingsState("disconnected");
+    try {
+      this.sharedSettingsToken = await this.storage.getItem(SHARED_SETTINGS_TOKEN_KEY);
+      await this.refreshSharedHostSettings();
+    } catch (error) {
+      this.setSharedHostSettingsState(
+        "error",
+        error instanceof Error ? error.message : "无法读取共享配置",
+      );
+    }
+  }
+
+  async connectSharedHostSettings(token: string): Promise<void> {
+    if (!this.sharedSettingsClient) throw new Error("此客户端未启用共享配置");
+    if (!/^[A-Za-z0-9_-]{32,128}$/.test(token.trim())) throw new Error("请输入有效的共享配置口令");
+    await this.queueHostPreferences(async () => {
+      try {
+        const value = token.trim();
+        let document = await this.sharedSettingsClient!.read(value);
+        for (const host of this.hosts) {
+          document = await this.sharedSettingsClient!.patch(value, {
+            serverId: host.serverId,
+            initialize: true,
+            changes: {
+              label: host.label,
+              color: host.appearance.color,
+              badgeDisplay: host.appearance.badgeDisplay,
+              ...(host.browseRootDirectory
+                ? { browseRootDirectory: host.browseRootDirectory }
+                : {}),
+            },
+          });
+        }
+        await this.storage.setItem(SHARED_SETTINGS_TOKEN_KEY, value);
+        this.sharedSettingsToken = value;
+        await this.acceptSharedHostSettings(document);
+      } catch (error) {
+        this.setSharedHostSettingsState(
+          "error",
+          error instanceof Error ? error.message : "共享配置连接失败",
+        );
+        throw error;
+      }
+    });
+  }
+
+  async refreshSharedHostSettings(): Promise<void> {
+    if (!this.sharedSettingsClient || !this.sharedSettingsToken) return;
+    await this.queueHostPreferences(async () => {
+      try {
+        const document = await this.sharedSettingsClient!.read(this.sharedSettingsToken!);
+        await this.acceptSharedHostSettings(document);
+      } catch (error) {
+        this.setSharedHostSettingsState(
+          "error",
+          error instanceof Error ? error.message : "无法读取共享配置",
+        );
+        throw error;
+      }
+    });
+  }
+
+  private async acceptSharedHostSettings(document: SharedHostSettingsDocument): Promise<void> {
+    const next = applySharedHostSettings(this.hosts, document);
+    if (!equal(next, this.hosts)) await this.persistHosts(next);
+    this.sharedSettings = document;
+    if (!equal(next, this.hosts)) this.setHostsAndSync(next);
+    this.setSharedHostSettingsState("connected");
+  }
+
+  private queueHostPreferences(update: () => Promise<void>): Promise<void> {
+    const result = this.hostPreferencesMutationTail.then(update);
+    this.hostPreferencesMutationTail = result.catch(() => undefined);
+    return result;
   }
 
   private async bootstrapDefaultLocalhost(): Promise<void> {
@@ -2095,7 +2206,7 @@ export class HostRuntimeStore {
   }
 
   async renameHost(serverId: string, label: string): Promise<void> {
-    await this.updateHost(serverId, (host) => ({ ...host, label }));
+    await this.updateHostPreferences(serverId, { label });
   }
 
   async setHostPassword(serverId: string, password: string): Promise<void> {
@@ -2106,44 +2217,50 @@ export class HostRuntimeStore {
   }
 
   async setHostColor(serverId: string, color: HostColor): Promise<void> {
-    await this.updateHostPreferences(serverId, (host) => ({
-      ...host,
-      appearance: { ...host.appearance, color },
-    }));
+    await this.updateHostPreferences(serverId, { color });
   }
 
   async setHostBadgeDisplay(serverId: string, badgeDisplay: HostBadgeDisplay): Promise<void> {
-    await this.updateHostPreferences(serverId, (host) => ({
-      ...host,
-      appearance: { ...host.appearance, badgeDisplay },
-    }));
+    await this.updateHostPreferences(serverId, { badgeDisplay });
   }
 
   async setHostBrowseRootDirectory(serverId: string, directory: string): Promise<void> {
     const browseRootDirectory = normalizeHostBrowseRootDirectory(directory);
     if (!browseRootDirectory) throw new Error("An absolute directory path is required");
-    await this.updateHostPreferences(serverId, (host) => ({ ...host, browseRootDirectory }));
+    await this.updateHostPreferences(serverId, { browseRootDirectory });
   }
 
-  private updateHostPreferences(
-    serverId: string,
-    apply: (host: HostProfile) => HostProfile,
-  ): Promise<void> {
-    const update = this.hostPreferencesMutationTail.then(() =>
-      this.applyHostPreferences(serverId, apply),
-    );
-    this.hostPreferencesMutationTail = update.catch(() => undefined);
-    return update;
+  private updateHostPreferences(serverId: string, changes: SharedHostSettingsPatch): Promise<void> {
+    return this.queueHostPreferences(() => this.applyHostPreferences(serverId, changes));
   }
 
   private async applyHostPreferences(
     serverId: string,
-    apply: (host: HostProfile) => HostProfile,
+    changes: SharedHostSettingsPatch,
   ): Promise<void> {
+    if (this.sharedSettingsClient && this.sharedSettingsToken) {
+      try {
+        const document = await this.sharedSettingsClient.patch(this.sharedSettingsToken, {
+          serverId,
+          changes,
+        });
+        await this.acceptSharedHostSettings(document);
+        return;
+      } catch (error) {
+        this.setSharedHostSettingsState(
+          "error",
+          error instanceof Error ? error.message : "共享配置保存失败",
+        );
+        throw error;
+      }
+    }
     const updatedAt = new Date().toISOString();
-    const next = this.hosts.map((host) =>
-      host.serverId === serverId ? { ...apply(host), updatedAt } : host,
-    );
+    const next = applySharedHostSettings(this.hosts, {
+      revision: 0,
+      hosts: { [serverId]: changes },
+    });
+    const changed = next.find((host) => host.serverId === serverId);
+    if (changed) changed.updatedAt = updatedAt;
     await this.persistHosts(next);
     this.setHostsAndSync(next);
   }
@@ -2233,6 +2350,7 @@ export class HostRuntimeStore {
       >;
     },
   ): void {
+    hosts = applySharedHostSettings(hosts, this.sharedSettings);
     this.hosts = hosts;
     this.syncHosts(hosts, options);
     this.emitHostList();
@@ -2703,6 +2821,15 @@ export function getHostRuntimeStore(): HostRuntimeStore {
 
 export function getHostRuntimeConnectionStatusSince(serverId: string): number | null {
   return getHostRuntimeStore().getConnectionStatusSince(serverId);
+}
+
+export function useSharedHostSettingsState(): SharedHostSettingsState {
+  const store = getHostRuntimeStore();
+  return useSyncExternalStore(
+    (listener) => store.subscribeHostList(listener),
+    () => store.getSharedHostSettingsState(),
+    () => store.getSharedHostSettingsState(),
+  );
 }
 
 export function useHostRuntimeSnapshot(serverId: string): HostRuntimeSnapshot | null {

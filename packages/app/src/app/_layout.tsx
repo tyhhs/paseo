@@ -106,6 +106,7 @@ import {
   useKeyboardActionDispatcher,
 } from "@/keyboard/keyboard-action-dispatcher-context";
 import { polyfillCrypto } from "@/polyfills/crypto";
+import { SharedHostSettingsBootstrap } from "@/hosts/shared-settings-ui";
 import {
   getHostRuntimeStore,
   hasConfiguredLocalDaemonOverride,
@@ -689,6 +690,7 @@ function ProvidersWrapper({ children }: { children: ReactNode }) {
         <DesktopWindowControlsSync />
         <OfferLinkListener />
         <HostSessionManager />
+        <SharedHostSettingsBootstrap />
         <FaviconStatusSync />
         {children}
       </VoiceProvider>

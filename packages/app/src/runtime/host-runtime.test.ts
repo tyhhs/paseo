@@ -625,9 +625,13 @@ function createMemoryReplicaRowStore(): ReplicaRowStore {
   };
 }
 
-function createAppearanceStore(storage: HostRuntimeStorage): HostRuntimeStore {
+function createAppearanceStore(
+  storage: HostRuntimeStorage,
+  sharedSettingsClient?: import("@/hosts/shared-settings").SharedHostSettingsClient,
+): HostRuntimeStore {
   return new HostRuntimeStore({
     storage,
+    sharedSettingsClient,
     deps: {
       createClient: () => {
         throw new Error("createClient should not be called");
@@ -1917,6 +1921,110 @@ describe("HostRuntimeStore", () => {
     expect(store.getHosts()[0]?.appearance).toEqual({ color: "none", badgeDisplay: null });
 
     store.syncHosts([]);
+  });
+
+  it("shares only host metadata between devices, retains pairing data, and rejects failed remote writes", async () => {
+    type Document = import("@/hosts/shared-settings").SharedHostSettingsDocument;
+    let shared: Document = {
+      revision: 1,
+      hosts: {
+        srv_shared: {
+          label: "共享别名",
+          color: "teal",
+          badgeDisplay: "icon",
+          browseRootDirectory: "/shared/repos",
+        },
+      },
+    };
+    let fail = false;
+    const writes: unknown[] = [];
+    const client: import("@/hosts/shared-settings").SharedHostSettingsClient = {
+      discover: async () => true,
+      read: async () => {
+        if (fail) throw new Error("offline");
+        return structuredClone(shared);
+      },
+      patch: async (_token, { serverId, changes, initialize }) => {
+        if (fail) throw new Error("offline");
+        writes.push(changes);
+        shared = {
+          revision: shared.revision + 1,
+          hosts: {
+            ...shared.hosts,
+            [serverId]: initialize
+              ? { ...changes, ...shared.hosts[serverId] }
+              : { ...shared.hosts[serverId], ...changes },
+          },
+        };
+        return structuredClone(shared);
+      },
+    };
+    const firstStorage = createMemoryHostRuntimeStorage();
+    const secondStorage = createMemoryHostRuntimeStorage();
+    const firstHost = makeHost({
+      serverId: "srv_shared",
+      label: "first",
+      password: "device-one-only",
+    });
+    const secondHost = makeHost({
+      serverId: "srv_shared",
+      label: "second",
+      password: "device-two-only",
+    });
+    for (const [storage, host] of [
+      [firstStorage, firstHost],
+      [secondStorage, secondHost],
+    ] as const) {
+      await storage.setItem("@paseo:daemon-registry", JSON.stringify([host]));
+      await storage.setItem("@paseo:e2e", "1");
+    }
+    const first = createAppearanceStore(firstStorage, client);
+    const second = createAppearanceStore(secondStorage, client);
+    await Promise.all([first.boot(), second.boot()]);
+    const localConnections = structuredClone(second.getHosts()[0]!.connections);
+    await Promise.all([
+      first.connectSharedHostSettings("x".repeat(43)),
+      second.connectSharedHostSettings("x".repeat(43)),
+    ]);
+    expect(second.getHosts()[0]).toMatchObject({
+      label: "共享别名",
+      password: "device-two-only",
+      appearance: { color: "teal", badgeDisplay: "icon" },
+      browseRootDirectory: "/shared/repos",
+    });
+    expect(second.getHosts()[0]!.connections).toEqual(localConnections);
+    await Promise.all([
+      first.renameHost("srv_shared", "新别名"),
+      first.setHostColor("srv_shared", "amber"),
+    ]);
+    await second.refreshSharedHostSettings();
+    expect(second.getHosts()[0]).toMatchObject({
+      label: "新别名",
+      appearance: { color: "amber", badgeDisplay: "icon" },
+      password: "device-two-only",
+    });
+    expect(writes.slice(-2)).toEqual([{ label: "新别名" }, { color: "amber" }]);
+    expect(JSON.stringify(writes)).not.toContain("device-one-only");
+    expect(JSON.stringify(writes)).not.toContain("connections");
+    expect(first.getHosts()[0]!.password).toBe("device-one-only");
+    fail = true;
+    await expect(first.renameHost("srv_shared", "failed")).rejects.toThrow("offline");
+    expect(first.getHosts()[0]!.label).toBe("新别名");
+    expect(first.getSharedHostSettingsState()).toEqual({ status: "error", error: "offline" });
+    await expect(second.refreshSharedHostSettings()).rejects.toThrow("offline");
+    expect(second.getHosts()[0]!.label).toBe("新别名");
+    fail = false;
+    await second.refreshSharedHostSettings();
+    expect(second.getSharedHostSettingsState().status).toBe("connected");
+    const reopened = createAppearanceStore(secondStorage, client);
+    shared.hosts.srv_shared!.label = "服务端更新";
+    await reopened.boot();
+    await onceHostListMatches(
+      reopened,
+      () => reopened.getSharedHostSettingsState().status === "connected",
+    );
+    expect(reopened.getHosts()[0]!.label).toBe("服务端更新");
+    for (const store of [first, second, reopened]) store.syncHosts([]);
   });
 
   it("records a chosen host color and writes it through to storage", async () => {
@@ -3491,6 +3599,7 @@ describe("HostRuntimeStore", () => {
 
   it("renameHost updates label in memory", async () => {
     const store = new HostRuntimeStore({
+      storage: createMemoryHostRuntimeStorage(),
       deps: {
         createClient: () => new FakeDaemonClient() as unknown as DaemonClient,
         connectToDaemon: async ({ host }) => ({
@@ -3511,9 +3620,7 @@ describe("HostRuntimeStore", () => {
     });
     expect(store.getHosts().find((h) => h.serverId === "srv_rename")?.label).toBe("old name");
 
-    // persistHosts may throw in test env (no AsyncStorage/window), but the
-    // in-memory state should still be updated by setHostsAndSync.
-    await store.renameHost("srv_rename", "new name").catch(() => undefined);
+    await store.renameHost("srv_rename", "new name");
 
     const renamed = store.getHosts().find((h) => h.serverId === "srv_rename");
     expect(renamed?.label).toBe("new name");

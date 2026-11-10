@@ -21,6 +21,7 @@ export interface AdaptiveRenameModalProps {
   onSubmit: (value: string) => Promise<void> | void;
   validate?: (value: string) => string | null;
   maxLength?: number;
+  secureTextEntry?: boolean;
   testID?: string;
 }
 
@@ -34,6 +35,7 @@ export function AdaptiveRenameModal({
   onSubmit,
   validate,
   maxLength,
+  secureTextEntry,
   testID,
 }: AdaptiveRenameModalProps) {
   const { t } = useTranslation();
@@ -133,6 +135,7 @@ export function AdaptiveRenameModal({
           autoCorrect={false}
           editable={!isPending}
           maxLength={maxLength}
+          secureTextEntry={secureTextEntry}
           onSubmitEditing={handleSubmitVoid}
           style={styles.input}
           testID={inputTestID}

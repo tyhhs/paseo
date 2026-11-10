@@ -2,6 +2,16 @@ import { en, type TranslationResources } from "./en";
 import { pluginSettings } from "./plugin-settings";
 
 export const zhCN: TranslationResources = {
+  sharedHostSettings: {
+    title: "跨设备共享配置",
+    hint: "共享主机名称、颜色、徽章和 Browse 根目录。配对凭证仍保留在当前设备。",
+    disconnected: "未连接 · 使用本机配置",
+    connected: "已连接 · 保存到网页服务器",
+    error: "同步失败 · 已保留本地显示",
+    connect: "连接同步",
+    refresh: "刷新",
+    key: "共享配置口令",
+  },
   homeOverview: {
     removeToday: "从今日活跃移除 {{name}}",
     removeTodayHint: "仅从今日列表隐藏，保留会话",
