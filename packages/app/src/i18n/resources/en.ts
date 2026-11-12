@@ -14,6 +14,13 @@ export const en = {
     removeTodayHint: "Hide for today; keep the conversation",
     clearSignalFilter: "Clear status filter",
     filterSignal: "Show sessions with status: {{state}}",
+    signal: {
+      finished: "Done",
+      running: "Running",
+      waiting: "Waiting",
+      failed: "Failed",
+      idle: "Idle",
+    },
     statusTabs: {
       all: "All",
       running: "Running",

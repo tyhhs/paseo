@@ -15,8 +15,15 @@ export const zhCN: TranslationResources = {
   homeOverview: {
     removeToday: "从今日活跃移除 {{name}}",
     removeTodayHint: "仅从今日列表隐藏，保留会话",
-    clearSignalFilter: "清除状态灯筛选",
-    filterSignal: "查看同色会话：{{state}}",
+    clearSignalFilter: "清除状态筛选",
+    filterSignal: "查看同类会话：{{state}}",
+    signal: {
+      finished: "完成",
+      running: "运行",
+      waiting: "等待",
+      failed: "失败",
+      idle: "空闲",
+    },
     statusTabs: {
       all: "全部",
       running: "运行",

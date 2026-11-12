@@ -109,7 +109,9 @@ export function ActiveSessionSidebarView({
             onPress={clearSignal}
             style={styles.signalFilter}
           >
-            <View style={[styles.signal, signalStyle(signalFilter)]} />
+            <Text numberOfLines={1} style={[styles.signal, signalStyle(signalFilter)]}>
+              {t(`homeOverview.signal.${signalGroup(signalFilter)}`)}
+            </Text>
           </Pressable>
         )}
       </View>
@@ -244,7 +246,9 @@ function ActiveSessionRow({
             onPress={filterSignal}
             style={[styles.signalSlot, compact && styles.compactSignalSlot]}
           >
-            <View style={[styles.signal, signalStyle(item.state)]} />
+            <Text numberOfLines={1} style={[styles.signal, signalStyle(item.state)]}>
+              {t(`homeOverview.signal.${signalGroup(item.state)}`)}
+            </Text>
           </Pressable>
         </TooltipTrigger>
         <TooltipContent side="right">
@@ -286,7 +290,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   resizeBoundary: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 10 },
   compactSection: { maxHeight: "40%" },
-  compactRow: { minHeight: 48, paddingRight: 96 },
+  compactRow: { minHeight: 48, paddingRight: 100 },
   heading: {
     flexDirection: "row",
     alignItems: "center",
@@ -297,7 +301,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   rowContainer: { position: "relative" },
   signalFilter: {
-    width: 32,
+    minWidth: 48,
+    paddingHorizontal: 8,
     height: 32,
     alignItems: "center",
     justifyContent: "center",
@@ -318,7 +323,7 @@ const styles = StyleSheet.create((theme) => ({
     marginHorizontal: 8,
     borderRadius: 8,
     paddingLeft: 10,
-    paddingRight: 80,
+    paddingRight: 96,
     paddingVertical: 7,
     minHeight: 36,
     justifyContent: "center",
@@ -328,31 +333,31 @@ const styles = StyleSheet.create((theme) => ({
   hiddenActions: { opacity: 0 },
   removeSlot: {
     position: "absolute",
-    right: 44,
+    right: 60,
     top: 0,
     width: 28,
     height: 36,
     alignItems: "center",
     justifyContent: "center",
   },
-  compactRemoveSlot: { right: 52, width: 40, height: 48 },
+  compactRemoveSlot: { right: 56, width: 40, height: 48 },
   signalSlot: {
     position: "absolute",
     right: 10,
     top: 0,
-    width: 36,
+    width: 52,
     height: 36,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
   },
-  compactSignalSlot: { width: 48, height: 48, right: 4 },
-  signal: { width: 8, height: 8, borderRadius: 4 },
-  signalSuccess: { backgroundColor: theme.colors.statusDotSuccess },
-  signalRunning: { backgroundColor: theme.colors.statusDotRunning },
-  signalDanger: { backgroundColor: theme.colors.statusDotDanger },
-  signalWarning: { backgroundColor: theme.colors.statusDotWarning },
-  signalUnknown: { backgroundColor: theme.colors.foregroundExtraMuted },
+  compactSignalSlot: { width: 52, height: 48, right: 4 },
+  signal: { fontSize: theme.fontSize.sm },
+  signalSuccess: { color: theme.colors.statusDotSuccess },
+  signalRunning: { color: theme.colors.statusDotRunning },
+  signalDanger: { color: theme.colors.statusDotDanger },
+  signalWarning: { color: theme.colors.statusDotWarning },
+  signalUnknown: { color: theme.colors.foregroundExtraMuted },
   title: {
     fontSize: theme.fontSize.base,
     color: theme.colors.foreground,
