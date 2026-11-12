@@ -1,3 +1,4 @@
+import { useSidebarReveal } from "@/components/sidebar/sidebar-reveal";
 import { useFavorites } from "./favorites";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
@@ -9,6 +10,7 @@ import { ActiveSessionSidebarView } from "./sidebar-view";
 const openSession = (serverId: string, agentId: string) => {
   useSidebarViewStore.getState().selectHostFilter(serverId);
   navigateToAgent({ serverId, agentId });
+  useSidebarReveal.setState({ request: { serverId, agentId } });
 };
 export function ActiveSessionSidebar({
   compact = false,

@@ -1,3 +1,4 @@
+import { useRevealConversation } from "./sidebar-reveal";
 import { FavoriteButton } from "@/home-overview/favorites";
 import { appendWorkspaceAgentRows, uniqueConversationRows } from "./unique-conversation-rows";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
@@ -149,6 +150,7 @@ function ConversationRow({
   selected: boolean;
   onOpenWorkspace: () => void;
 }) {
+  const revealRef = useRevealConversation(serverId, agentId, selected);
   const client = useHostRuntimeClient(serverId);
   const hosts = useHosts();
   const hostLabel = hosts.find((host) => host.serverId === serverId)?.label ?? serverId;
@@ -226,7 +228,12 @@ function ConversationRow({
 
   return (
     <>
-      <View style={styles.rowContainer} onPointerEnter={enter} onPointerLeave={leave}>
+      <View
+        ref={revealRef}
+        style={styles.rowContainer}
+        onPointerEnter={enter}
+        onPointerLeave={leave}
+      >
         <View
           style={[
             styles.row,

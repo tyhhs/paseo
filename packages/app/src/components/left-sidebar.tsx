@@ -602,6 +602,8 @@ function MobileSidebar({
 
         {active ? <ActiveSessionSidebar compact onBeforeNavigate={closeSidebar} /> : null}
 
+        {workspacesSectionHeaderElement}
+
         {isInitialLoad && !hasActiveHostFilter ? (
           <SidebarAgentListSkeleton />
         ) : (
@@ -624,7 +626,6 @@ function MobileSidebar({
             onImportSession={handleImportSession}
             parentGestureRef={closeGestureRef}
             dragGestureHostActive={active}
-            listHeaderComponent={workspacesSectionHeaderElement}
           />
         )}
 
@@ -783,6 +784,8 @@ function DesktopSidebar({
 
         {active ? <ActiveSessionSidebar /> : null}
 
+        {workspacesSectionHeaderElement}
+
         {isInitialLoad && !hasActiveHostFilter ? (
           <SidebarAgentListSkeleton />
         ) : (
@@ -802,7 +805,6 @@ function DesktopSidebar({
             onRefresh={handleRefresh}
             onAddProject={handleOpenProject}
             onImportSession={handleImportSession}
-            listHeaderComponent={workspacesSectionHeaderElement}
           />
         )}
 
@@ -829,7 +831,7 @@ function DesktopSidebar({
 
 function WorkspacesSectionHeader() {
   return (
-    <View>
+    <View style={styles.workspacesHeader} testID="sidebar-workspaces-header">
       <SidebarSectionHeader title="Workspaces">
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
@@ -847,8 +849,7 @@ function WorkspacesSectionHeader() {
   );
 }
 
-// Stable element so the sidebar list's listHeaderComponent prop keeps identity across
-// renders (WorkspacesSectionHeader takes no props).
+// Keep the header outside the scrolling workspace list.
 const workspacesSectionHeaderElement = <WorkspacesSectionHeader />;
 
 // Static styles for Animated.Views — must NOT use Unistyles dynamic theme to
@@ -873,6 +874,10 @@ const styles = StyleSheet.create((theme) => ({
   },
   sidebarHeaderGroupBelowChrome: {
     paddingTop: 0,
+  },
+  workspacesHeader: {
+    flexShrink: 0,
+    paddingHorizontal: theme.spacing[2],
   },
   sidebarContent: {
     flex: 1,
