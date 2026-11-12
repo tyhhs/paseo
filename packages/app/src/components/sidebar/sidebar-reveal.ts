@@ -34,13 +34,15 @@ export function useRevealConversation(
   useEffect(() => {
     if (isNative || !selected || !ref.current) return;
     const row = ref.current as unknown as HTMLElement;
-    // A closed mobile drawer has no measurable layout; reveal when it opens.
+    // The mobile drawer and active-session panel settle after navigation.
     const observer = new ResizeObserver(() => {
-      if (revealConversation(row)) observer.disconnect();
+      revealConversation(row);
     });
     observer.observe(row);
+    const scroll = row.closest('[data-testid="sidebar-project-workspace-list-scroll"]');
+    if (scroll) observer.observe(scroll);
     const frame = requestAnimationFrame(() => {
-      if (revealConversation(row)) observer.disconnect();
+      revealConversation(row);
     });
     return () => {
       cancelAnimationFrame(frame);
