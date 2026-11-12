@@ -223,58 +223,60 @@ function ConversationRow({
 
   return (
     <>
-      <Pressable
-        accessible={false}
-        tabIndex={-1}
-        style={[styles.row, selected && styles.selected, !selected && hovered && styles.highlight]}
-        onHoverIn={enter}
-        onHoverOut={leave}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={title}
-          accessibilityState={state}
-          onPress={open}
-          onFocus={focus}
-          onBlur={blur}
-          style={styles.rowMain}
-          testID={`sidebar-conversation-${id}`}
+      <View style={styles.rowContainer} onPointerEnter={enter} onPointerLeave={leave}>
+        <View
+          style={[
+            styles.row,
+            selected && styles.selected,
+            !selected && hovered && styles.highlight,
+          ]}
         >
-          <Text numberOfLines={1} style={[styles.title, ended && styles.muted]}>
-            {title}
-          </Text>
-          {ended && <Text style={styles.muted}>{t("conversation.ended")}</Text>}
-        </Pressable>
-        {agentId && (
-          <View
-            style={[styles.actions, !showActions && styles.hiddenActions]}
-            pointerEvents={showActions ? "auto" : "none"}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={title}
+            accessibilityState={state}
+            onPress={open}
+            onFocus={focus}
+            onBlur={blur}
+            style={styles.rowMain}
+            testID={`sidebar-conversation-${id}`}
           >
-            <Button
-              size="xs"
-              variant="ghost"
-              leftIcon={Pencil}
-              onPress={showRename}
-              onFocus={focus}
-              onBlur={blur}
-              disabled={!client}
-              accessibilityLabel={t("workspace.tabs.menu.rename")}
-              testID={`sidebar-conversation-rename-${id}`}
-            />
-            <Button
-              size="xs"
-              variant="ghost"
-              leftIcon={X}
-              onPress={close}
-              onFocus={focus}
-              onBlur={blur}
-              disabled={!ownerClient || closing}
-              accessibilityLabel={t("conversation.end")}
-              testID={`sidebar-conversation-close-${id}`}
-            />
-          </View>
-        )}
-      </Pressable>
+            <Text numberOfLines={1} style={[styles.title, ended && styles.muted]}>
+              {title}
+            </Text>
+            {ended && <Text style={styles.muted}>{t("conversation.ended")}</Text>}
+          </Pressable>
+          {agentId && (
+            <View
+              style={[styles.actions, !showActions && styles.hiddenActions]}
+              pointerEvents={showActions ? "auto" : "none"}
+            >
+              <Button
+                size="xs"
+                variant="ghost"
+                leftIcon={Pencil}
+                onPress={showRename}
+                onFocus={focus}
+                onBlur={blur}
+                disabled={!client}
+                accessibilityLabel={t("workspace.tabs.menu.rename")}
+                testID={`sidebar-conversation-rename-${id}`}
+              />
+              <Button
+                size="xs"
+                variant="ghost"
+                leftIcon={X}
+                onPress={close}
+                onFocus={focus}
+                onBlur={blur}
+                disabled={!ownerClient || closing}
+                accessibilityLabel={t("conversation.end")}
+                testID={`sidebar-conversation-close-${id}`}
+              />
+            </View>
+          )}
+        </View>
+      </View>
       <AdaptiveRenameModal
         visible={editing}
         title={t("workspace.tabs.menu.renameAgent")}
@@ -288,6 +290,7 @@ function ConversationRow({
   );
 }
 const styles = StyleSheet.create((theme) => ({
+  rowContainer: { position: "relative" },
   row: {
     flexDirection: "row",
     alignItems: "center",
