@@ -319,6 +319,8 @@ session rather than an already-running one.
 
 `agents.metadataGeneration.providers` controls the preferred structured-generation fallback order for daemon-side metadata tasks such as commit messages, PR text, branch names, and generated agent titles. Entries are tried first in the configured order, then Paseo falls through to dynamically discovered defaults and finally the current selection when available.
 
+Conversation titles are generated after a completed turn when the stored title is empty or still matches the first-message provisional title. This also covers empty conversations and new conversations in existing workspaces. Each attempt reads the current metadata-generation settings; failures can retry on the next completed turn. A conditional storage update preserves a title manually changed while generation was in progress.
+
 ### Git process limits
 
 Git process limits are global to one daemon. The start-rate limit defaults to `64` processes per

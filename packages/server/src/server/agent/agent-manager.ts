@@ -2102,7 +2102,11 @@ export class AgentManager {
     this.emitState(agent);
   }
 
-  async setTitle(agentId: string, title: string): Promise<void> {
+  async setTitle(
+    agentId: string,
+    title: string,
+    options?: { expectedTitle: string | null },
+  ): Promise<void> {
     const agent = this.requireAgent(agentId);
     const normalizedTitle = title.trim();
     if (!normalizedTitle) {
@@ -2116,7 +2120,7 @@ export class AgentManager {
       return;
     }
     this.touchUpdatedAt(agent);
-    await this.persistSnapshot(agent, { title: normalizedTitle });
+    await this.persistSnapshot(agent, { title: normalizedTitle, ...options });
     this.emitState(agent, { persist: false });
   }
 
@@ -4007,7 +4011,7 @@ export class AgentManager {
 
   private async persistSnapshot(
     agent: ManagedAgent,
-    options?: { title?: string | null; internal?: boolean },
+    options?: { title?: string | null; internal?: boolean; expectedTitle?: string | null },
   ): Promise<void> {
     if (!this.registry) {
       return;

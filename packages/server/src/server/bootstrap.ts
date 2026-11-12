@@ -1,3 +1,4 @@
+import { attachAgentAutoTitle } from "./agent/agent-auto-title.js";
 import { getWorkspaceTeamService } from "./workspace-team-runtime.js";
 import type { PluginRegistries } from "@getpaseo/protocol/plugin-registry";
 import { describeHookWorkspace } from "./plugins/lifecycle/index.js";
@@ -1125,6 +1126,14 @@ export async function createPaseoDaemon(
     logger,
   });
 
+  const detachAgentAutoTitle = attachAgentAutoTitle({
+    agentManager,
+    agentStorage,
+    providerSnapshotManager,
+    readDaemonConfig: () => ({ metadataGeneration: daemonConfigStore.get().metadataGeneration }),
+    logger,
+  });
+
   setupAutoArchiveOnMerge({
     paseoHome: config.paseoHome,
     paseoWorktreesBaseRoot: config.worktreesRoot,
@@ -1805,6 +1814,7 @@ export async function createPaseoDaemon(
       localCredential = null;
       await deleteLocalCredential(config.paseoHome);
       unsubscribePluginProviders();
+      detachAgentAutoTitle();
       await pluginRuntime.stopAllPlugins().catch(() => undefined);
       await serviceProxy.stopStandalone().catch(() => undefined);
       await agentProviderRuntime.shutdown().catch(() => undefined);
@@ -1824,6 +1834,7 @@ export async function createPaseoDaemon(
     // that is still open. Plugins themselves are stopped once every session
     // they serve has been closed, further down.
     unsubscribePluginProviders();
+    detachAgentAutoTitle();
     await hubRelationships.stop();
     workspaceReconciliation.dispose();
     workspaceTeams.dispose();

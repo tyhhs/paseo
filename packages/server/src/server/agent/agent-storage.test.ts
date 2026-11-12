@@ -323,6 +323,20 @@ describe("AgentStorage", () => {
     );
   });
 
+  test("conditional generated titles preserve a rename queued ahead of them", async () => {
+    const agent = createManagedAgent({ id: "agent-auto-title-race" });
+    await storage.applySnapshot(agent, { title: "provisional" });
+    const rename = storage.applySnapshot(agent, { title: "manual" });
+    const generated = storage.applySnapshot(agent, {
+      title: "generated",
+      expectedTitle: "provisional",
+    });
+    await Promise.all([rename, generated]);
+    expect((await storage.get(agent.id))?.title).toBe("manual");
+    await storage.applySnapshot(agent, { title: "new generated", expectedTitle: "manual" });
+    expect((await storage.get(agent.id))?.title).toBe("new generated");
+  });
+
   test("applySnapshot accepts explicit title overrides", async () => {
     const agentId = "agent-override";
     await storage.applySnapshot(createManagedAgent({ id: agentId }), { title: "Provided Title" });

@@ -239,7 +239,7 @@ export class AgentStorage {
 
   async applySnapshot(
     agent: ManagedAgent,
-    options?: { title?: string | null; internal?: boolean },
+    options?: { title?: string | null; internal?: boolean; expectedTitle?: string | null },
   ): Promise<void> {
     await this.load();
     const hasTitleOverride =
@@ -247,6 +247,14 @@ export class AgentStorage {
     const hasInternalOverride =
       options !== undefined && Object.prototype.hasOwnProperty.call(options, "internal");
     await this.queueRecordMutation(agent.id, (existing) => {
+      // Compare inside the write queue so a late model result cannot overwrite a rename.
+      if (
+        existing &&
+        options &&
+        "expectedTitle" in options &&
+        ((existing.title ?? null) !== options.expectedTitle || existing.archivedAt)
+      )
+        return existing;
       const record = toStoredAgentRecord(agent, {
         title: hasTitleOverride ? (options?.title ?? null) : (existing?.title ?? null),
         createdAt: existing?.createdAt,
