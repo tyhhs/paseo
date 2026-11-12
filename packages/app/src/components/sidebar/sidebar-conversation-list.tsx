@@ -311,7 +311,7 @@ const styles = StyleSheet.create((theme) => ({
   highlight: { backgroundColor: theme.colors.surfaceSidebarHover },
   actions: {
     flexDirection: "row",
-    width: 56,
+    flexShrink: 0,
     height: 28,
     justifyContent: "center",
   },
