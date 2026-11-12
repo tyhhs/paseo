@@ -2,7 +2,9 @@ import { FavoriteButton, useFavorites } from "./favorites";
 import { favoriteKey, type Favorite } from "@/hosts/shared-favorites";
 import { Button } from "@/components/ui/button";
 import { isNative } from "@/constants/platform";
-import { X } from "lucide-react-native";
+import { Folder, Globe, X } from "lucide-react-native";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { useSessionStore } from "@/stores/session-store";
 import { useDismissedSessions } from "./sidebar-dismissed";
 import { ResizeHandle } from "@/components/resize-handle";
 import { resolveActiveSessionHeight, useActiveSessionHeight } from "./sidebar-height";
@@ -10,7 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useEffect, useMemo, useState } from "react";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { FlatList, Pressable, Text, View, useWindowDimensions } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { todaySessions, type HomeSession } from "./model";
 
@@ -268,35 +270,47 @@ function ActiveSessionRow({
   ]);
   return (
     <View style={styles.rowContainer} onPointerEnter={enter} onPointerLeave={leave}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${item.agent.serverLabel} · ${item.agent.title || item.agent.provider} · ${t(`homeOverview.state.${item.state}`)}`}
-        testID={`sidebar-active-session-${item.agent.serverId}-${item.agent.id}`}
-        accessibilityState={sessionAccessibilityState}
-        onPress={open}
-        onFocus={focus}
-        onBlur={blur}
-        style={pressableStyle}
-      >
-        <View style={styles.line}>
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={styles.title}
-            testID="sidebar-active-title"
+      <HoverCard disabled={compact}>
+        <HoverCardTrigger>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${item.agent.serverLabel} · ${item.agent.title || item.agent.provider} · ${t(`homeOverview.state.${item.state}`)}`}
+            testID={`sidebar-active-session-${item.agent.serverId}-${item.agent.id}`}
+            accessibilityState={sessionAccessibilityState}
+            onPress={open}
+            onFocus={focus}
+            onBlur={blur}
+            style={pressableStyle}
           >
-            {item.agent.title || item.agent.provider}
-          </Text>
-          <Text
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={styles.meta}
-            testID="sidebar-active-host"
-          >
-            {item.agent.serverLabel}
-          </Text>
-        </View>
-      </Pressable>
+            <View style={styles.line}>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={styles.title}
+                testID="sidebar-active-title"
+              >
+                {item.agent.title || item.agent.provider}
+              </Text>
+              <Text
+                numberOfLines={1}
+                ellipsizeMode="tail"
+                style={styles.meta}
+                testID="sidebar-active-host"
+              >
+                {item.agent.serverLabel}
+              </Text>
+            </View>
+          </Pressable>
+        </HoverCardTrigger>
+        <HoverCardContent
+          placement="right"
+          alignment="start"
+          style={styles.sessionCard}
+          testID="sidebar-session-hover-card"
+        >
+          <SessionHoverDetails item={item} />
+        </HoverCardContent>
+      </HoverCard>
       <View
         style={[
           styles.removeSlot,
@@ -358,6 +372,49 @@ function ActiveSessionRow({
     </View>
   );
 }
+const ThemedFolder = withUnistyles(Folder);
+const ThemedGlobe = withUnistyles(Globe);
+const cardIconColor = (theme: import("@/styles/theme").Theme) => ({
+  color: theme.colors.foregroundMuted,
+});
+
+function SessionHoverDetails({ item }: { item: HomeSession }) {
+  const { t, i18n } = useTranslation();
+  const workspace = useSessionStore((state) =>
+    state.sessions[item.agent.serverId]?.workspaces.get(item.agent.workspaceId ?? ""),
+  );
+  const workspaceName =
+    workspace?.projectCustomName ||
+    workspace?.projectDisplayName ||
+    workspace?.name ||
+    item.agent.cwd;
+  return (
+    <>
+      <View style={styles.cardHeading}>
+        <Text style={styles.cardTitle}>{item.agent.title || item.agent.provider}</Text>
+        <Text
+          style={styles.cardTime}
+          accessibilityLabel={`${t("homeOverview.lastActivity")}: ${item.agent.lastActivityAt.toLocaleString(i18n.language)}`}
+        >
+          {item.agent.lastActivityAt.toLocaleString(i18n.language, {
+            month: "numeric",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </Text>
+      </View>
+      <View style={styles.cardInfo}>
+        <ThemedFolder size={16} uniProps={cardIconColor} />
+        <Text style={styles.cardText}>{workspaceName}</Text>
+      </View>
+      <View style={styles.cardInfo}>
+        <ThemedGlobe size={16} uniProps={cardIconColor} />
+        <Text style={styles.cardText}>{item.agent.serverLabel}</Text>
+      </View>
+    </>
+  );
+}
 function signalGroup(state: HomeSession["state"]) {
   if (state === "running" || state === "starting") return "running";
   if (state === "waiting" || state === "attention") return "waiting";
@@ -381,6 +438,27 @@ function signalStyle(state: HomeSession["state"]) {
   }
 }
 const styles = StyleSheet.create((theme) => ({
+  sessionCard: {
+    width: 380,
+    maxWidth: "90%",
+    padding: theme.spacing[3],
+    gap: theme.spacing[2],
+    backgroundColor: theme.colors.surface1,
+    borderWidth: 1,
+    borderColor: theme.colors.borderAccent,
+    borderRadius: theme.borderRadius.lg,
+  },
+  cardHeading: { flexDirection: "row", alignItems: "flex-start", gap: theme.spacing[3] },
+  cardTitle: {
+    flex: 1,
+    minWidth: 0,
+    color: theme.colors.foreground,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
+  },
+  cardTime: { color: theme.colors.foregroundMuted, fontSize: theme.fontSize.sm, flexShrink: 0 },
+  cardInfo: { flexDirection: "row", alignItems: "center", gap: theme.spacing[2] },
+  cardText: { flex: 1, minWidth: 0, color: theme.colors.foreground, fontSize: theme.fontSize.base },
   tabs: { flexDirection: "row", gap: 16 },
   tab: { paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: "transparent" },
   tabSelected: { borderBottomColor: theme.colors.foreground },
