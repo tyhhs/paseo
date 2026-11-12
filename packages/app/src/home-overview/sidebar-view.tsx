@@ -1,3 +1,5 @@
+import { FavoriteButton, useFavorites } from "./favorites";
+import { favoriteKey, type Favorite } from "@/hosts/shared-favorites";
 import { Button } from "@/components/ui/button";
 import { isNative } from "@/constants/platform";
 import { X } from "lucide-react-native";
@@ -14,6 +16,8 @@ import { todaySessions, type HomeSession } from "./model";
 
 export function ActiveSessionSidebarView({
   sessions,
+  favorites = [],
+  favoritesError = null,
   selectedKey = null,
   loading,
   openSession,
@@ -21,6 +25,8 @@ export function ActiveSessionSidebarView({
   onBeforeNavigate,
 }: {
   sessions: readonly HomeSession[];
+  favorites?: readonly Favorite[];
+  favoritesError?: string | null;
   selectedKey?: string | null;
   loading: boolean;
   compact?: boolean;
@@ -28,6 +34,14 @@ export function ActiveSessionSidebarView({
   openSession(serverId: string, agentId: string): void;
 }) {
   const { t } = useTranslation();
+  const [tab, setTab] = useState<"today" | "favorites">("today");
+  const todayTabState = useMemo(() => ({ selected: tab === "today" }), [tab]);
+  const favoritesTabState = useMemo(() => ({ selected: tab === "favorites" }), [tab]);
+  const showToday = useStableEvent(() => setTab("today"));
+  const showFavorites = useStableEvent(() => {
+    setTab("favorites");
+    void useFavorites.getState().refresh();
+  });
   const { height: windowHeight } = useWindowDimensions();
   const savedHeight = useActiveSessionHeight((state) => state.height);
   const saveHeight = useActiveSessionHeight((state) => state.setHeight);
@@ -71,20 +85,56 @@ export function ActiveSessionSidebarView({
     return () => clearTimeout(timer);
   }, [day]);
   const active = useMemo(() => todaySessions(sessions, new Date(day)), [sessions, day]);
+  const favoriteKeys = useMemo(() => new Set(favorites.map(favoriteKey)), [favorites]);
+  const missingFavorites = useMemo(
+    () =>
+      favorites.filter(
+        (entry) => !sessions.some((session) => sessionKey(session) === favoriteKey(entry)),
+      ),
+    [favorites, sessions],
+  );
   const visibleSessions = useMemo(
     () =>
-      active.filter(
+      (tab === "today"
+        ? active
+        : sessions
+            .filter((row) => favoriteKeys.has(sessionKey(row)))
+            .sort((a, b) => b.agent.lastActivityAt.getTime() - a.agent.lastActivityAt.getTime())
+      ).filter(
         (row) =>
-          !(dismissals.day === day && dismissals.hidden.includes(sessionKey(row))) &&
+          (tab === "favorites" ||
+            !(dismissals.day === day && dismissals.hidden.includes(sessionKey(row)))) &&
           (signalFilter === null || signalGroup(row.state) === signalGroup(signalFilter)),
       ),
-    [active, signalFilter, dismissals, day],
+    [active, signalFilter, dismissals, day, tab, sessions, favoriteKeys],
   );
   const empty = useMemo(() => {
-    let message = t("homeOverview.empty");
+    let message = t(tab === "favorites" ? "homeOverview.favoritesEmpty" : "homeOverview.empty");
+    if (tab === "favorites" && missingFavorites.length) return null;
     if (loading) message = t("homeOverview.loading");
     return <Text style={styles.empty}>{message}</Text>;
-  }, [loading, t]);
+  }, [loading, t, tab, missingFavorites.length]);
+  const unavailableFavorites = useMemo(
+    () =>
+      tab === "favorites" ? (
+        <View>
+          {missingFavorites.map((entry) => (
+            <View key={favoriteKey(entry)} style={styles.unavailable}>
+              <View style={styles.unavailableText}>
+                <Text numberOfLines={1} style={styles.label}>
+                  {entry.title}
+                </Text>
+                <Text style={styles.label}>
+                  {entry.hostLabel} · {t("homeOverview.favoriteUnavailable")}
+                </Text>
+              </View>
+              <FavoriteButton {...entry} />
+            </View>
+          ))}
+        </View>
+      ) : null,
+    [tab, missingFavorites, t],
+  );
   const handleOpenSession = useStableEvent((serverId: string, agentId: string) => {
     onBeforeNavigate?.();
     openSession(serverId, agentId);
@@ -93,6 +143,7 @@ export function ActiveSessionSidebarView({
     <ActiveSessionRow
       item={item}
       selected={sessionKey(item) === selectedKey}
+      favoriteMode={tab === "favorites"}
       compact={compact}
       openSession={handleOpenSession}
       toggleSignal={toggleSignal}
@@ -103,7 +154,26 @@ export function ActiveSessionSidebarView({
   return (
     <View style={sectionStyle} testID="sidebar-cross-host-active">
       <View style={styles.heading}>
-        <Text style={styles.label}>{t("homeOverview.today")}</Text>
+        <View style={styles.tabs} accessibilityRole="tablist">
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={todayTabState}
+            testID="sidebar-tab-today"
+            onPress={showToday}
+            style={[styles.tab, tab === "today" && styles.tabSelected]}
+          >
+            <Text style={styles.label}>{t("homeOverview.today")}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="tab"
+            accessibilityState={favoritesTabState}
+            testID="sidebar-tab-favorites"
+            onPress={showFavorites}
+            style={[styles.tab, tab === "favorites" && styles.tabSelected]}
+          >
+            <Text style={styles.label}>{t("homeOverview.favorites")}</Text>
+          </Pressable>
+        </View>
         {signalFilter !== null && (
           <Pressable
             accessibilityRole="button"
@@ -118,13 +188,19 @@ export function ActiveSessionSidebarView({
           </Pressable>
         )}
       </View>
+      {tab === "favorites" && favoritesError && (
+        <Text accessibilityRole="alert" style={styles.empty}>
+          {favoritesError}
+        </Text>
+      )}
       <FlatList
         nestedScrollEnabled
         data={visibleSessions}
-        extraData={selectedKey}
+        extraData={`${selectedKey}:${tab}`}
         style={styles.list}
         keyExtractor={sessionKey}
         ListEmptyComponent={empty}
+        ListFooterComponent={unavailableFavorites}
         renderItem={renderItem}
       />
       {!compact && (
@@ -152,6 +228,7 @@ const rowStyle = ({ hovered, pressed }: { hovered?: boolean; pressed: boolean })
 function ActiveSessionRow({
   item,
   selected: sessionSelected,
+  favoriteMode,
   compact,
   openSession,
   toggleSignal,
@@ -160,6 +237,7 @@ function ActiveSessionRow({
 }: {
   item: HomeSession;
   selected: boolean;
+  favoriteMode: boolean;
   dismissSession(key: string): void;
   compact: boolean;
   signalFilter: HomeSession["state"] | null;
@@ -227,25 +305,34 @@ function ActiveSessionRow({
         ]}
         pointerEvents={showActions ? "auto" : "none"}
       >
-        <Tooltip delayDuration={200}>
-          <TooltipTrigger asChild>
-            <Button
-              size="xs"
-              variant="ghost"
-              leftIcon={X}
-              accessibilityLabel={t("homeOverview.removeToday", {
-                name: item.agent.title || item.agent.provider,
-              })}
-              onPress={dismiss}
-              onFocus={focus}
-              onBlur={blur}
-              disabled={!showActions}
-            />
-          </TooltipTrigger>
-          <TooltipContent side="right">
-            <Text>{t("homeOverview.removeTodayHint")}</Text>
-          </TooltipContent>
-        </Tooltip>
+        {favoriteMode ? (
+          <FavoriteButton
+            serverId={item.agent.serverId}
+            agentId={item.agent.id}
+            title={item.agent.title || item.agent.provider}
+            hostLabel={item.agent.serverLabel}
+          />
+        ) : (
+          <Tooltip delayDuration={200}>
+            <TooltipTrigger asChild>
+              <Button
+                size="xs"
+                variant="ghost"
+                leftIcon={X}
+                accessibilityLabel={t("homeOverview.removeToday", {
+                  name: item.agent.title || item.agent.provider,
+                })}
+                onPress={dismiss}
+                onFocus={focus}
+                onBlur={blur}
+                disabled={!showActions}
+              />
+            </TooltipTrigger>
+            <TooltipContent side="right">
+              <Text>{t("homeOverview.removeTodayHint")}</Text>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </View>
       <Tooltip delayDuration={200}>
         <TooltipTrigger asChild>
@@ -294,6 +381,16 @@ function signalStyle(state: HomeSession["state"]) {
   }
 }
 const styles = StyleSheet.create((theme) => ({
+  tabs: { flexDirection: "row", gap: 16 },
+  tab: { paddingVertical: 6, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  tabSelected: { borderBottomColor: theme.colors.foreground },
+  unavailable: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+  },
+  unavailableText: { flex: 1, minWidth: 0 },
   section: {
     maxHeight: 300,
     flexShrink: 1,

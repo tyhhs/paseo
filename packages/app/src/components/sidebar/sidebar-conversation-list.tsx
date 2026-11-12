@@ -1,3 +1,4 @@
+import { FavoriteButton } from "@/home-overview/favorites";
 import { appendWorkspaceAgentRows, uniqueConversationRows } from "./unique-conversation-rows";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { confirmDialog } from "@/utils/confirm-dialog";
@@ -6,7 +7,7 @@ import equal from "fast-deep-equal";
 import { useStoreWithEqualityFn } from "zustand/traditional";
 import { AdaptiveRenameModal } from "@/components/rename-modal";
 import { Button } from "@/components/ui/button";
-import { useHostRuntimeClient } from "@/runtime/host-runtime";
+import { useHosts, useHostRuntimeClient } from "@/runtime/host-runtime";
 import { useCallback, useMemo, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Pencil, X } from "lucide-react-native";
@@ -149,6 +150,8 @@ function ConversationRow({
   onOpenWorkspace: () => void;
 }) {
   const client = useHostRuntimeClient(serverId);
+  const hosts = useHosts();
+  const hostLabel = hosts.find((host) => host.serverId === serverId)?.label ?? serverId;
   const ownerClient = useHostRuntimeClient(ownerServerId);
   const toast = useToast();
   const [closing, setClosing] = useState(false);
@@ -261,6 +264,12 @@ function ConversationRow({
                 disabled={!client}
                 accessibilityLabel={t("workspace.tabs.menu.rename")}
                 testID={`sidebar-conversation-rename-${id}`}
+              />
+              <FavoriteButton
+                serverId={serverId}
+                agentId={agentId}
+                title={title}
+                hostLabel={hostLabel}
               />
               <Button
                 size="xs"

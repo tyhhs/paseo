@@ -1,3 +1,8 @@
+import {
+  FavoritesDocumentSchema,
+  type FavoritesDocument,
+  type FavoriteMutation,
+} from "./shared-favorites";
 import { z } from "zod";
 import { getIsElectron, isWeb } from "@/constants/platform";
 import { HOST_COLORS, HOST_BADGE_DISPLAYS } from "./appearance";
@@ -28,6 +33,7 @@ const documentSchema = z.strictObject({
 export type SharedHostSettingsDocument = z.infer<typeof documentSchema>;
 export interface SharedHostSettingsClient {
   discover(): Promise<boolean>;
+  favorites?(token: string, input?: FavoriteMutation): Promise<FavoritesDocument>;
   read(token: string): Promise<SharedHostSettingsDocument>;
   patch(
     token: string,
@@ -89,6 +95,20 @@ export function createSharedHostSettingsClient(): SharedHostSettingsClient | nul
     return documentSchema.parse(await response.json());
   };
   return {
+    favorites: async (token, input) => {
+      const response = await fetch("/api/client-settings/favorites", {
+        method: input ? "PATCH" : "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(input ? { "Content-Type": "application/json" } : {}),
+        },
+        ...(input ? { body: JSON.stringify(input) } : {}),
+        cache: "no-store",
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!response.ok) throw new Error("收藏同步失败，请检查共享配置连接后重试。");
+      return FavoritesDocumentSchema.parse(await response.json());
+    },
     discover: async () => {
       try {
         const response = await fetch("/api/client-settings/info", {

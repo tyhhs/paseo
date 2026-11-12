@@ -74,3 +74,66 @@ test("authenticated per-field updates survive reload without exposing or accepti
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("favorites merge across clients, survive restart, and keep host documents compatible", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "paseo-favorites-"));
+  let server;
+  const start = async () => {
+    server = createSettingsServer({ directory, token, origin });
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    return `http://127.0.0.1:${server.address().port}/api/client-settings`;
+  };
+  try {
+    let base = await start();
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Origin: origin,
+      "Content-Type": "application/json",
+    };
+    const favorite = {
+      serverId: "srv_mac",
+      agentId: "session-1",
+      title: "Old session",
+      hostLabel: "Mac",
+      addedAt: 0,
+    };
+    const patch = (entry, remove = false, override = {}) =>
+      fetch(`${base}/favorites`, {
+        method: "PATCH",
+        headers: { ...headers, ...override },
+        body: JSON.stringify({ favorite: entry, remove }),
+      });
+    assert.equal((await fetch(`${base}/favorites`)).status, 401);
+    assert.equal((await patch(favorite, false, { Origin: "http://evil.example" })).status, 403);
+    assert.equal((await patch({ ...favorite, agentId: "../../secret" })).status, 400);
+    assert.equal((await patch({ ...favorite, password: "secret" })).status, 400);
+    const responses = await Promise.all([
+      patch(favorite),
+      patch({ ...favorite, serverId: "srv_remote" }),
+    ]);
+    assert.ok(responses.every((response) => response.status === 200));
+    assert.equal((await (await fetch(`${base}/favorites`, { headers })).json()).entries.length, 2);
+    await patch(favorite);
+    assert.equal((await (await fetch(`${base}/favorites`, { headers })).json()).entries.length, 2);
+    assert.deepEqual(Object.keys(await (await fetch(base, { headers })).json()).sort(), [
+      "hosts",
+      "revision",
+    ]);
+    await new Promise((resolve) => server.close(resolve));
+    base = await start();
+    let saved = await (await fetch(`${base}/favorites`, { headers })).json();
+    assert.equal(saved.entries.length, 2);
+    assert.equal(statSync(join(directory, "favorites.json")).mode & 0o777, 0o600);
+    await patch(favorite, true);
+    saved = await (await fetch(`${base}/favorites`, { headers })).json();
+    assert.equal(saved.entries.length, 1);
+    assert.equal(saved.entries[0].serverId, "srv_remote");
+    mkdirSync(join(directory, "favorites.json.tmp"));
+    assert.equal((await patch(saved.entries[0], true)).status, 500);
+    assert.deepEqual(await (await fetch(`${base}/favorites`, { headers })).json(), saved);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(directory, { recursive: true, force: true });
+  }
+});

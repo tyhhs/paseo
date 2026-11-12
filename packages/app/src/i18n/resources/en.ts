@@ -10,6 +10,12 @@ export const en = {
     key: "Shared settings key",
   },
   homeOverview: {
+    favorites: "Favorites",
+    addFavorite: "Add to favorites",
+    removeFavorite: "Remove from favorites",
+    favoritesEmpty: "No favorites yet. Star a conversation to add it.",
+    favoriteUnavailable: "Unavailable on this device",
+
     removeToday: "Remove {{name}} from today’s list",
     removeTodayHint: "Hide for today; keep the conversation",
     clearSignalFilter: "Clear status filter",

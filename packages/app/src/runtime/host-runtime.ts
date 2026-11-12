@@ -1,3 +1,4 @@
+import type { FavoriteMutation, FavoritesDocument } from "@/hosts/shared-favorites";
 import { useSyncExternalStore, useMemo } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import equal from "fast-deep-equal/es6";
@@ -1681,6 +1682,12 @@ export class HostRuntimeStore {
     this.hostRegistryLoaded = true;
     this.emitHostList();
     void this.initializeSharedHostSettings();
+  }
+
+  async requestSharedFavorites(input?: FavoriteMutation): Promise<FavoritesDocument> {
+    if (!this.sharedSettingsClient?.favorites || !this.sharedSettingsToken)
+      throw new Error("请先在主机概览中连接跨设备共享配置，再使用收藏。");
+    return this.sharedSettingsClient.favorites(this.sharedSettingsToken, input);
   }
 
   getSharedHostSettingsState(): SharedHostSettingsState {

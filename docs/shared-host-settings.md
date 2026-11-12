@@ -46,3 +46,24 @@ node --test scripts/gateway-settings/server.test.mjs
 cd packages/app
 npx --no-install vitest run src/runtime/host-runtime.test.ts src/i18n/resources.test.ts --bail=1
 ```
+
+## Shared conversation favorites
+
+The same authenticated service stores favorites separately in `favorites.json` at
+`/api/client-settings/favorites`. It runs on the relay/gateway host; relay forwarding
+itself does not read conversation metadata. Existing host-settings responses are unchanged.
+A favorite stores only stable host/agent IDs, a display-title/host-label snapshot and its
+creation time. No messages, files or pairing credentials are uploaded. One sync key shares
+one collection; devices still pair independently with hosts before opening their sessions.
+
+The sidebar switches between Today's sessions and Favorites. Stars in workspace conversation
+rows add/remove entries; selection uses the same active conversation as Today's sessions.
+Favorites include older sessions, ignore today's dismissals, and retain unavailable entries
+with their saved labels. Unavailable entries can still be removed. Saves update the UI only
+after server confirmation; failed writes retain the previous collection and show an error.
+Per-entry changes merge across devices, and older in-flight responses cannot replace newer
+revisions. Browsers refresh on focus, tab selection and every 15 seconds while visible.
+
+This uses the existing browser-only shared-settings connection. Native/Electron packages
+need a configured gateway sync client before they can participate; building shared UI alone
+does not give those clients a sync endpoint. Back up favorites with the settings data.

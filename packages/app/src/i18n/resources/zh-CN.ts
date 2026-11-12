@@ -13,6 +13,12 @@ export const zhCN: TranslationResources = {
     key: "共享配置口令",
   },
   homeOverview: {
+    favorites: "收藏夹",
+    addFavorite: "收藏会话",
+    removeFavorite: "取消收藏",
+    favoritesEmpty: "暂无收藏，点击会话旁的星标即可添加。",
+    favoriteUnavailable: "当前设备暂不可用",
+
     removeToday: "从今日活跃移除 {{name}}",
     removeTodayHint: "仅从今日列表隐藏，保留会话",
     clearSignalFilter: "清除状态筛选",

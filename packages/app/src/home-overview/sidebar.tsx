@@ -1,3 +1,4 @@
+import { useFavorites } from "./favorites";
 import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { selectedSessionKey } from "./sidebar-selection";
@@ -17,10 +18,14 @@ export function ActiveSessionSidebar({
   onBeforeNavigate?: () => void;
 }) {
   const overview = useHomeOverview();
+  const favorites = useFavorites((state) => state.document.entries);
+  const favoritesError = useFavorites((state) => state.error);
   const workspace = useActiveWorkspaceSelection();
   const selectedKey = useWorkspaceLayoutStore((state) => selectedSessionKey(state, workspace));
   return (
     <ActiveSessionSidebarView
+      favorites={favorites}
+      favoritesError={favoritesError}
       selectedKey={selectedKey}
       compact={compact}
       onBeforeNavigate={onBeforeNavigate}

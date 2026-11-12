@@ -64,6 +64,43 @@ function validInput(input) {
   );
 }
 
+function saveDocument(filename, directory, next) {
+  const temporary = `${filename}.tmp`;
+  writeFileSync(temporary, JSON.stringify(next) + "\n", { mode: 0o600 });
+  const fd = openSync(temporary, "r");
+  try {
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+  renameSync(temporary, filename);
+  const dir = openSync(directory, "r");
+  try {
+    fsyncSync(dir);
+  } finally {
+    closeSync(dir);
+  }
+}
+const validFavorite = (value) =>
+  value &&
+  typeof value === "object" &&
+  Object.keys(value).every((key) =>
+    ["serverId", "agentId", "title", "hostLabel", "addedAt"].includes(key),
+  ) &&
+  validId(value.serverId) &&
+  typeof value.agentId === "string" &&
+  /^[A-Za-z0-9_-]{1,200}$/.test(value.agentId) &&
+  typeof value.title === "string" &&
+  value.title.length > 0 &&
+  value.title.length <= 500 &&
+  noControls(value.title) &&
+  typeof value.hostLabel === "string" &&
+  value.hostLabel.length <= 200 &&
+  noControls(value.hostLabel) &&
+  Number.isSafeInteger(value.addedAt) &&
+  value.addedAt >= 0;
+const favoriteKey = (value) => JSON.stringify([value.serverId, value.agentId]);
+
 export function createSettingsServer({ directory, token, origin }) {
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(token)) throw new Error("Invalid settings token");
   if (new URL(origin).origin !== origin) throw new Error("Invalid settings origin");
@@ -83,6 +120,64 @@ export function createSettingsServer({ directory, token, origin }) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
+  const favoritesFile = join(directory, "favorites.json");
+  let favorites = { revision: 0, entries: [] };
+  try {
+    favorites = JSON.parse(readFileSync(favoritesFile, "utf8"));
+    if (
+      !Number.isSafeInteger(favorites.revision) ||
+      favorites.revision < 0 ||
+      !Array.isArray(favorites.entries) ||
+      favorites.entries.length > 2000 ||
+      !favorites.entries.every(validFavorite) ||
+      new Set(favorites.entries.map(favoriteKey)).size !== favorites.entries.length
+    )
+      throw new Error("Invalid stored favorites");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  function patchFavorites(input, send) {
+    if (
+      !input ||
+      Object.keys(input).some((key) => !["favorite", "remove"].includes(key)) ||
+      typeof input.remove !== "boolean" ||
+      !validFavorite(input.favorite)
+    )
+      return send(400, { error: "Invalid favorite" });
+    const key = favoriteKey(input.favorite);
+    const entries = favorites.entries.filter((entry) => favoriteKey(entry) !== key);
+    if (!input.remove)
+      entries.push({
+        ...input.favorite,
+        addedAt:
+          favorites.entries.find((entry) => favoriteKey(entry) === key)?.addedAt ?? Date.now(),
+      });
+    if (entries.length > 2000) return send(409, { error: "Favorite limit reached" });
+    const next = { revision: favorites.revision + 1, entries };
+    saveDocument(favoritesFile, directory, next);
+    favorites = next;
+    return send(200, favorites);
+  }
+  function patchHosts(input, send) {
+    if (!validInput(input)) return send(400, { error: "Invalid host settings" });
+    if (
+      !Object.hasOwn(document.hosts, input.serverId) &&
+      Object.keys(document.hosts).length >= 1000
+    )
+      return send(409, { error: "Host limit reached" });
+    const existing = document.hosts[input.serverId];
+    const settings = mergeChanges(existing, input);
+    const next = {
+      revision: document.revision + 1,
+      hosts: {
+        ...document.hosts,
+        [input.serverId]: settings,
+      },
+    };
+    saveDocument(filename, directory, next);
+    document = next;
+    return send(200, document);
+  }
   return createServer(async (req, res) => {
     const send = (status, body) => {
       res.writeHead(status, {
@@ -94,12 +189,14 @@ export function createSettingsServer({ directory, token, origin }) {
     };
     if (req.url === "/api/client-settings/info" && req.method === "GET")
       return send(200, { enabled: true });
-    if (req.url !== "/api/client-settings") return send(404, { error: "Not found" });
+    const isFavorites = req.url === "/api/client-settings/favorites";
+    if (req.url !== "/api/client-settings" && !isFavorites)
+      return send(404, { error: "Not found" });
     if (!timingSafeEqual(expected, digest(req.headers.authorization ?? "")))
       return send(401, { error: "Invalid sync key" });
     if (req.headers.origin && req.headers.origin !== origin)
       return send(403, { error: "Origin not allowed" });
-    if (req.method === "GET") return send(200, document);
+    if (req.method === "GET") return send(200, isFavorites ? favorites : document);
     if (req.method !== "PATCH") return send(405, { error: "Method not allowed" });
     if (req.headers.origin !== origin || req.headers["content-type"] !== "application/json")
       return send(403, { error: "Same-origin JSON required" });
@@ -115,38 +212,7 @@ export function createSettingsServer({ directory, token, origin }) {
       } catch {
         return send(400, { error: "Invalid JSON" });
       }
-      if (!validInput(input)) return send(400, { error: "Invalid host settings" });
-      if (
-        !Object.hasOwn(document.hosts, input.serverId) &&
-        Object.keys(document.hosts).length >= 1000
-      )
-        return send(409, { error: "Host limit reached" });
-      const existing = document.hosts[input.serverId];
-      const settings = mergeChanges(existing, input);
-      const next = {
-        revision: document.revision + 1,
-        hosts: {
-          ...document.hosts,
-          [input.serverId]: settings,
-        },
-      };
-      const temporary = `${filename}.tmp`;
-      writeFileSync(temporary, JSON.stringify(next) + "\n", { mode: 0o600 });
-      const fd = openSync(temporary, "r");
-      try {
-        fsyncSync(fd);
-      } finally {
-        closeSync(fd);
-      }
-      renameSync(temporary, filename);
-      const dir = openSync(directory, "r");
-      try {
-        fsyncSync(dir);
-      } finally {
-        closeSync(dir);
-      }
-      document = next;
-      return send(200, document);
+      return isFavorites ? patchFavorites(input, send) : patchHosts(input, send);
     } catch (error) {
       console.error("[settings] Unable to save:", error.code ?? error.name);
       return send(500, { error: "Unable to save host settings" });

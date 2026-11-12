@@ -1,3 +1,4 @@
+import { useFavorites } from "@/home-overview/favorites";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SettingsCard, SettingsRow, SettingsSection } from "@/components/settings";
@@ -13,6 +14,21 @@ import { isWeb } from "@/constants/platform";
 export function SharedHostSettingsBootstrap() {
   const loaded = useHostRegistryLoaded();
   const state = useSharedHostSettingsState();
+  useEffect(() => {
+    if (!isWeb || !loaded || state.status !== "connected") return;
+    const refresh = () => {
+      if (document.visibilityState === "visible") void useFavorites.getState().refresh();
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    const timer = setInterval(refresh, 15000);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", refresh);
+    };
+  }, [loaded, state.status]);
   useEffect(() => {
     if (!isWeb || !loaded || state.status === "disabled") return;
     const store = getHostRuntimeStore();
