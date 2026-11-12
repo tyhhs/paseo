@@ -14,12 +14,14 @@ import { todaySessions, type HomeSession } from "./model";
 
 export function ActiveSessionSidebarView({
   sessions,
+  selectedKey = null,
   loading,
   openSession,
   compact = false,
   onBeforeNavigate,
 }: {
   sessions: readonly HomeSession[];
+  selectedKey?: string | null;
   loading: boolean;
   compact?: boolean;
   onBeforeNavigate?: () => void;
@@ -90,6 +92,7 @@ export function ActiveSessionSidebarView({
   const renderItem = useStableEvent(({ item }: { item: HomeSession }) => (
     <ActiveSessionRow
       item={item}
+      selected={sessionKey(item) === selectedKey}
       compact={compact}
       openSession={handleOpenSession}
       toggleSignal={toggleSignal}
@@ -118,6 +121,7 @@ export function ActiveSessionSidebarView({
       <FlatList
         nestedScrollEnabled
         data={visibleSessions}
+        extraData={selectedKey}
         style={styles.list}
         keyExtractor={sessionKey}
         ListEmptyComponent={empty}
@@ -147,6 +151,7 @@ const rowStyle = ({ hovered, pressed }: { hovered?: boolean; pressed: boolean })
 ];
 function ActiveSessionRow({
   item,
+  selected: sessionSelected,
   compact,
   openSession,
   toggleSignal,
@@ -154,6 +159,7 @@ function ActiveSessionRow({
   dismissSession,
 }: {
   item: HomeSession;
+  selected: boolean;
   dismissSession(key: string): void;
   compact: boolean;
   signalFilter: HomeSession["state"] | null;
@@ -172,16 +178,23 @@ function ActiveSessionRow({
   const filterSignal = useStableEvent(() => toggleSignal(item.state));
   const selected = signalFilter !== null && signalGroup(signalFilter) === signalGroup(item.state);
   const signalAccessibilityState = useMemo(() => ({ selected }), [selected]);
+  const sessionAccessibilityState = useMemo(
+    () => ({ selected: sessionSelected }),
+    [sessionSelected],
+  );
   const open = useStableEvent(() => openSession(item.agent.serverId, item.agent.id));
   const pressableStyle = useStableEvent((state: Parameters<typeof rowStyle>[0]) => [
     rowStyle(state),
     compact && styles.compactRow,
+    sessionSelected && styles.selectedRow,
   ]);
   return (
     <View style={styles.rowContainer} onPointerEnter={enter} onPointerLeave={leave}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${item.agent.serverLabel} · ${item.agent.title || item.agent.provider} · ${t(`homeOverview.state.${item.state}`)}`}
+        testID={`sidebar-active-session-${item.agent.serverId}-${item.agent.id}`}
+        accessibilityState={sessionAccessibilityState}
         onPress={open}
         onFocus={focus}
         onBlur={blur}
@@ -328,6 +341,7 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: 36,
     justifyContent: "center",
   },
+  selectedRow: { backgroundColor: theme.colors.surfaceSidebarSelected },
   hover: { backgroundColor: theme.colors.surface2 },
   line: { flexDirection: "row", alignItems: "center", gap: 8 },
   hiddenActions: { opacity: 0 },

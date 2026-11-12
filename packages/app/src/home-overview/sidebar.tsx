@@ -1,3 +1,6 @@
+import { useActiveWorkspaceSelection } from "@/stores/navigation-active-workspace-store";
+import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
+import { selectedSessionKey } from "./sidebar-selection";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useHomeOverview } from "./use-home-overview";
@@ -14,8 +17,11 @@ export function ActiveSessionSidebar({
   onBeforeNavigate?: () => void;
 }) {
   const overview = useHomeOverview();
+  const workspace = useActiveWorkspaceSelection();
+  const selectedKey = useWorkspaceLayoutStore((state) => selectedSessionKey(state, workspace));
   return (
     <ActiveSessionSidebarView
+      selectedKey={selectedKey}
       compact={compact}
       onBeforeNavigate={onBeforeNavigate}
       sessions={overview.sessions}
